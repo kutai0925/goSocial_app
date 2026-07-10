@@ -7,133 +7,124 @@ import {
   Modal,
   Pressable,
   Image,
+  StatusBar,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 
-export default function MapScreen() {
+import { LinearGradient } from "expo-linear-gradient";
+import BottomNavigation from "../components/BottomNavigation";
+
+export default function MapScreen({ onNavigate }) {
   const [selectedParty, setSelectedParty] = useState(null);
 
-  const openPartyPopup = (party) => {
+  function openPartyPopup(party) {
     setSelectedParty(party);
-  };
+  }
 
-  const closePopup = () => {
+  function closePopup() {
     setSelectedParty(null);
-  };
+  }
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      <StatusBar barStyle="light-content" />
+
       <LinearGradient
-        colors={["#7B1FB4", "#C05CFF"]}
+        colors={["#A63FDC", "#B95BE9"]}
         style={styles.header}
       >
-<Image
-    source={require("../../assets/images/gosocial_logo_512x512.png")}
-    style={styles.headerLogo}
-    resizeMode="contain"
-  />
+        <Image
+          source={require("../../assets/images/gosocial_logo_512x512.png")}
+          style={styles.headerLogo}
+          resizeMode="contain"
+        />
 
         <Text style={styles.headerTitle}>Maps</Text>
 
-        <Text style={styles.arrow}>⌄</Text>
+        <Text style={styles.downArrow}>⌄</Text>
       </LinearGradient>
 
-      {/* Fake Map Area */}
-      <View style={styles.mapArea}>
-        {/* Map background lines */}
-        <View style={styles.roadOne} />
-        <View style={styles.roadTwo} />
-        <View style={styles.roadThree} />
-        <View style={styles.roadFour} />
+      <View style={styles.mapContainer}>
+        <View style={styles.fakeMap}>
+          <View style={styles.roadOne} />
+          <View style={styles.roadTwo} />
+          <View style={styles.roadThree} />
+          <View style={styles.roadFour} />
+          <View style={styles.roadFive} />
 
-        <View style={styles.greenAreaOne} />
-        <View style={styles.greenAreaTwo} />
+          <View style={styles.greenAreaOne} />
+          <View style={styles.greenAreaTwo} />
+          <View style={styles.greenAreaThree} />
 
-        {/* User Location */}
-        <View style={styles.userLocation}>
-          <View style={styles.userDot} />
-        </View>
+          <View style={styles.userLocation}>
+            <View style={styles.userDot} />
+          </View>
 
-        {/* Party Marker P1 */}
-        <TouchableOpacity
-          style={[styles.marker, styles.partyOne]}
-          onPress={() =>
-            openPartyPopup({
-              title: "80s Party",
-              location: "Retro Club Munich",
-              time: "Tonight · 22:00",
-              description:
-                "Dance to classic 80s hits, retro lights and old-school vibes.",
-              color: "#FF4D5A",
-            })
-          }
-        >
-          <Text style={styles.markerText}>P</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.partyPin, styles.partyPinOne]}
+            onPress={() =>
+              openPartyPopup({
+                title: "80s Party",
+                location: "Retro Club Munich",
+                time: "Tonight · 22:00",
+                description:
+                  "Classic 80s music, retro lights and old-school vibes.",
+              })
+            }
+          >
+            <Text style={styles.partyPinText}>P</Text>
+          </TouchableOpacity>
 
-        {/* Party Marker P2 */}
-        <TouchableOpacity
-          style={[styles.marker, styles.partyTwo]}
-          onPress={() =>
-            openPartyPopup({
-              title: "Techno Party",
-              location: "Underground Hall",
-              time: "Tonight · 23:30",
-              description:
-                "Dark room, heavy bass, electronic sound and techno crowd.",
-              color: "#FF4D5A",
-            })
-          }
-        >
-          <Text style={styles.markerText}>P</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.partyPin, styles.partyPinTwo]}
+            onPress={() =>
+              openPartyPopup({
+                title: "Techno Party",
+                location: "Underground Hall",
+                time: "Tonight · 23:30",
+                description:
+                  "Dark room, heavy bass, electronic sound and techno crowd.",
+              })
+            }
+          >
+            <Text style={styles.partyPinText}>P</Text>
+          </TouchableOpacity>
 
-        {/* Other demo markers */}
-        <View style={[styles.smallMarker, styles.foodOne]}>
-          <Text style={styles.smallMarkerText}>🍴</Text>
-        </View>
+          <View style={[styles.orangePin, styles.foodPinOne]}>
+            <Text style={styles.smallPinText}>🍴</Text>
+          </View>
 
-        <View style={[styles.smallMarker, styles.shopOne]}>
-          <Text style={styles.smallMarkerText}>🛍</Text>
-        </View>
+          <View style={[styles.orangePin, styles.foodPinTwo]}>
+            <Text style={styles.smallPinText}>🍴</Text>
+          </View>
 
-        <View style={[styles.smallMarker, styles.blueOne]}>
-          <Text style={styles.smallMarkerText}>B</Text>
-        </View>
+          <View style={[styles.bluePin, styles.bluePinOne]}>
+            <Text style={styles.smallPinText}>▣</Text>
+          </View>
 
-        <View style={[styles.smallMarker, styles.blueTwo]}>
-          <Text style={styles.smallMarkerText}>B</Text>
+          <View style={[styles.bluePin, styles.bluePinTwo]}>
+            <Text style={styles.smallPinText}>▣</Text>
+          </View>
+
+          <View style={[styles.purplePin, styles.purplePinOne]}>
+            <Text style={styles.smallPinText}>▬</Text>
+          </View>
+
+          <View style={[styles.yellowPin, styles.yellowPinOne]}>
+            <Text style={styles.smallPinText}>▤</Text>
+          </View>
         </View>
       </View>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <Text style={styles.navIcon}>⌂</Text>
-        <Text style={styles.navIcon}>☏</Text>
+      <BottomNavigation activeScreen="map" onNavigate={onNavigate} />
 
-        <TouchableOpacity style={styles.addButton}>
-          <Text style={styles.addButtonText}>+</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.navIcon}>♧</Text>
-        <Text style={styles.navIcon}>♙</Text>
-      </View>
-
-      {/* Popup Modal */}
       <Modal
-        transparent={true}
         visible={selectedParty !== null}
+        transparent={true}
         animationType="fade"
       >
         <Pressable style={styles.modalOverlay} onPress={closePopup}>
           <Pressable style={styles.popupCard}>
-            <View
-              style={[
-                styles.popupIcon,
-                { backgroundColor: selectedParty?.color || "#FF4D5A" },
-              ]}
-            >
+            <View style={styles.popupIcon}>
               <Text style={styles.popupIconText}>P</Text>
             </View>
 
@@ -145,8 +136,8 @@ export default function MapScreen() {
               {selectedParty?.description}
             </Text>
 
-            <TouchableOpacity style={styles.joinButton} onPress={closePopup}>
-              <Text style={styles.joinButtonText}>Show Party</Text>
+            <TouchableOpacity style={styles.showButton} onPress={closePopup}>
+              <Text style={styles.showButtonText}>Show Party</Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={closePopup}>
@@ -162,240 +153,281 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#111111",
+    backgroundColor: "#4B155F",
   },
 
   header: {
-    height: 105,
-    paddingTop: 35,
-    paddingHorizontal: 18,
-    borderBottomLeftRadius: 4,
-    borderBottomRightRadius: 4,
+    height: 185,
+    paddingTop: 28,
+    alignItems: "center",
+    justifyContent: "flex-start",
   },
 
-logoCircle: {
-  position: "absolute",
-  top: 14,
-  left: 12,
-  width: 54,
-  height: 54,
-  alignItems: "center",
-  justifyContent: "center",
-},
-
-headerLogo: {
-  width: 52,
-  height: 52,
-},
+  headerLogo: {
+    position: "absolute",
+    top: 16,
+    left: 17,
+    width: 88,
+    height: 88,
+  },
 
   headerTitle: {
     color: "#FFFFFF",
-    fontSize: 25,
-    fontWeight: "500",
-    textAlign: "center",
-  },
-
-  arrow: {
-    color: "#2B003D",
-    fontSize: 32,
+    fontSize: 40,
+    fontWeight: "700",
     marginTop: 12,
+
+    textShadowColor: "rgba(0, 0, 0, 0.35)",
+    textShadowOffset: {
+      width: 3,
+      height: 4,
+    },
+    textShadowRadius: 6,
   },
 
-  mapArea: {
+  downArrow: {
+    position: "absolute",
+    left: 52,
+    bottom: 22,
+    color: "#111111",
+    fontSize: 52,
+    fontWeight: "200",
+  },
+
+  mapContainer: {
     flex: 1,
-    backgroundColor: "#F1F3F4",
+    backgroundColor: "#4B155F",
+    paddingHorizontal: 6,
+  },
+
+  fakeMap: {
+    flex: 1,
+    backgroundColor: "#EEF2F3",
+    borderWidth: 2,
+    borderColor: "#5DADE2",
     overflow: "hidden",
+    position: "relative",
   },
 
   roadOne: {
     position: "absolute",
-    width: 520,
+    width: 720,
     height: 42,
     backgroundColor: "#FFFFFF",
-    top: 70,
-    left: -100,
-    transform: [{ rotate: "-25deg" }],
+    top: 50,
+    left: -130,
+    transform: [{ rotate: "-17deg" }],
   },
 
   roadTwo: {
     position: "absolute",
-    width: 520,
-    height: 38,
+    width: 730,
+    height: 36,
     backgroundColor: "#FFFFFF",
-    top: 220,
-    left: -90,
-    transform: [{ rotate: "25deg" }],
+    top: 180,
+    left: -180,
+    transform: [{ rotate: "32deg" }],
   },
 
   roadThree: {
     position: "absolute",
-    width: 430,
-    height: 32,
+    width: 680,
+    height: 36,
     backgroundColor: "#FFFFFF",
     top: 360,
-    left: -40,
-    transform: [{ rotate: "-20deg" }],
+    left: -130,
+    transform: [{ rotate: "-24deg" }],
   },
 
   roadFour: {
     position: "absolute",
-    width: 35,
+    width: 44,
+    height: 720,
+    backgroundColor: "#FFFFFF",
+    top: -60,
+    left: 200,
+    transform: [{ rotate: "12deg" }],
+  },
+
+  roadFive: {
+    position: "absolute",
+    width: 36,
     height: 700,
     backgroundColor: "#FFFFFF",
-    top: -40,
-    left: 185,
-    transform: [{ rotate: "15deg" }],
+    top: -80,
+    right: 82,
+    transform: [{ rotate: "-9deg" }],
   },
 
   greenAreaOne: {
     position: "absolute",
-    width: 180,
-    height: 210,
-    backgroundColor: "#BFEFC7",
-    bottom: -40,
-    left: -35,
+    width: 170,
+    height: 360,
+    backgroundColor: "#BDEFC7",
+    left: 70,
+    bottom: -70,
     borderRadius: 30,
-    transform: [{ rotate: "-15deg" }],
+    transform: [{ rotate: "-8deg" }],
   },
 
   greenAreaTwo: {
     position: "absolute",
     width: 90,
+    height: 150,
+    backgroundColor: "#BDEFC7",
+    top: 180,
+    left: 5,
+    borderRadius: 18,
+    transform: [{ rotate: "-25deg" }],
+  },
+
+  greenAreaThree: {
+    position: "absolute",
+    width: 110,
     height: 90,
-    backgroundColor: "#BFEFC7",
-    top: 20,
-    right: -25,
-    borderRadius: 20,
+    backgroundColor: "#BDEFC7",
+    top: 0,
+    right: 16,
+    borderRadius: 18,
   },
 
   userLocation: {
     position: "absolute",
-    top: 150,
-    left: 70,
-    width: 35,
-    height: 35,
-    borderRadius: 18,
-    backgroundColor: "rgba(48, 130, 255, 0.25)",
+    left: 82,
+    top: 250,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(50, 130, 255, 0.22)",
     alignItems: "center",
     justifyContent: "center",
   },
 
   userDot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "#2F80ED",
-    borderWidth: 3,
-    borderColor: "#8FC0FF",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#2E86FF",
+    borderWidth: 5,
+    borderColor: "rgba(80, 155, 255, 0.45)",
   },
 
-  marker: {
+  partyPin: {
     position: "absolute",
-    width: 34,
-    height: 43,
-    borderRadius: 17,
-    backgroundColor: "#FF4D5A",
+    width: 42,
+    height: 56,
+    borderRadius: 21,
+    backgroundColor: "#FF4458",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 3,
+    borderWidth: 4,
     borderColor: "#FFFFFF",
   },
 
-  markerText: {
+  partyPinText: {
+    color: "#FFFFFF",
+    fontSize: 25,
+    fontWeight: "900",
+    marginTop: -5,
+  },
+
+  partyPinOne: {
+    top: 115,
+    left: 220,
+  },
+
+  partyPinTwo: {
+    top: 345,
+    left: 42,
+  },
+
+  orangePin: {
+    position: "absolute",
+    width: 40,
+    height: 54,
+    borderRadius: 20,
+    backgroundColor: "#FF8E5E",
+    borderWidth: 4,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  foodPinOne: {
+    top: 155,
+    left: 65,
+  },
+
+  foodPinTwo: {
+    bottom: 72,
+    left: 48,
+  },
+
+  bluePin: {
+    position: "absolute",
+    width: 40,
+    height: 54,
+    borderRadius: 20,
+    backgroundColor: "#2E86FF",
+    borderWidth: 4,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  bluePinOne: {
+    top: 210,
+    right: 67,
+  },
+
+  bluePinTwo: {
+    top: 345,
+    left: 210,
+  },
+
+  purplePin: {
+    position: "absolute",
+    width: 40,
+    height: 54,
+    borderRadius: 20,
+    backgroundColor: "#805BFF",
+    borderWidth: 4,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  purplePinOne: {
+    top: 380,
+    right: 42,
+  },
+
+  yellowPin: {
+    position: "absolute",
+    width: 40,
+    height: 54,
+    borderRadius: 20,
+    backgroundColor: "#F2A93B",
+    borderWidth: 4,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  yellowPinOne: {
+    bottom: 95,
+    right: 122,
+  },
+
+  smallPinText: {
     color: "#FFFFFF",
     fontSize: 18,
-    fontWeight: "800",
-  },
-
-  partyOne: {
-    top: 48,
-    left: 148,
-  },
-
-  partyTwo: {
-    top: 215,
-    left: 38,
-  },
-
-  smallMarker: {
-    position: "absolute",
-    width: 31,
-    height: 38,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-  },
-
-  smallMarkerText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-
-  foodOne: {
-    top: 72,
-    left: 48,
-    backgroundColor: "#FF8C5A",
-  },
-
-  shopOne: {
-    bottom: 72,
-    right: 62,
-    backgroundColor: "#F5A742",
-  },
-
-  blueOne: {
-    top: 145,
-    right: 58,
-    backgroundColor: "#48A4FF",
-  },
-
-  blueTwo: {
-    top: 235,
-    right: 128,
-    backgroundColor: "#2F80ED",
-  },
-
-  bottomNav: {
-    height: 78,
-    backgroundColor: "#070707",
-    borderTopWidth: 16,
-    borderTopColor: "#4B155F",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingBottom: 12,
-  },
-
-  navIcon: {
-    color: "#9D5AC4",
-    fontSize: 22,
-  },
-
-  addButton: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: "#8E44C4",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: -30,
-    borderWidth: 5,
-    borderColor: "#070707",
-  },
-
-  addButtonText: {
-    color: "#FFFFFF",
-    fontSize: 32,
-    fontWeight: "500",
-    marginTop: -3,
+    fontWeight: "900",
   },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    backgroundColor: "rgba(0, 0, 0, 0.58)",
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
@@ -404,15 +436,16 @@ headerLogo: {
   popupCard: {
     width: "100%",
     backgroundColor: "#FFFFFF",
-    borderRadius: 26,
+    borderRadius: 28,
     padding: 24,
     alignItems: "center",
   },
 
   popupIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: "#FF4458",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 14,
@@ -420,47 +453,47 @@ headerLogo: {
 
   popupIconText: {
     color: "#FFFFFF",
-    fontSize: 26,
-    fontWeight: "800",
+    fontSize: 30,
+    fontWeight: "900",
   },
 
   popupTitle: {
-    fontSize: 26,
+    color: "#171717",
+    fontSize: 27,
     fontWeight: "800",
-    color: "#191919",
     marginBottom: 6,
   },
 
   popupLocation: {
+    color: "#6E6E6E",
     fontSize: 16,
-    color: "#6B6B6B",
     marginBottom: 4,
   },
 
   popupTime: {
+    color: "#8F4CC7",
     fontSize: 15,
-    color: "#8E44C4",
     fontWeight: "700",
     marginBottom: 14,
   },
 
   popupDescription: {
-    fontSize: 15,
     color: "#444444",
+    fontSize: 15,
     textAlign: "center",
     lineHeight: 22,
-    marginBottom: 20,
+    marginBottom: 22,
   },
 
-  joinButton: {
-    backgroundColor: "#8E44C4",
+  showButton: {
+    backgroundColor: "#8F4CC7",
     paddingVertical: 13,
-    paddingHorizontal: 36,
+    paddingHorizontal: 38,
     borderRadius: 24,
     marginBottom: 14,
   },
 
-  joinButtonText: {
+  showButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",

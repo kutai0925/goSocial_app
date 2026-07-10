@@ -1,24 +1,31 @@
 import React, { useEffect, useState } from "react";
 import { Image, StatusBar, StyleSheet, Text } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+
 import MapScreen from "./src/screens/MapScreen";
+import ChatScreen from "./src/screens/ChatScreen";
 
 export default function App() {
-  const [showSplash, setShowSplash] = useState(true);
+  const [showLanding, setShowLanding] = useState(true);
+  const [currentScreen, setCurrentScreen] = useState("map");
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setShowSplash(false);
-    }, 2000);
+      setShowLanding(false);
+    }, 4500);
 
     return () => clearTimeout(timer);
   }, []);
 
-  if (showSplash) {
+  if (showLanding) {
     return <LandingScreen />;
   }
 
-  return <MapScreen />;
+  if (currentScreen === "chat") {
+    return <ChatScreen onNavigate={setCurrentScreen} />;
+  }
+
+  return <MapScreen onNavigate={setCurrentScreen} />;
 }
 
 function LandingScreen() {
