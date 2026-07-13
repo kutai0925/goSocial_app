@@ -13,6 +13,8 @@ import {
   ScrollView,
 } from "react-native";
 
+import BottomNavigation from "../components/BottomNavigation";
+
 const chats = [
   {
     id: "1",
@@ -143,7 +145,7 @@ const chats = [
   },
 ];
 
-export default function ChatScreen() {
+export default function ChatScreen({ onNavigate }) {
   const [selectedChat, setSelectedChat] = useState(null);
   const [searchText, setSearchText] = useState("");
   const [messageText, setMessageText] = useState("");
@@ -273,6 +275,7 @@ export default function ChatScreen() {
           </TouchableOpacity>
         )}
       />
+      <BottomNavigation activeScreen="chat" onNavigate={onNavigate} />
     </SafeAreaView>
   );
 }

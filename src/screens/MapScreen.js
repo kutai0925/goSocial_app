@@ -29,7 +29,7 @@ export default function MapScreen({ onNavigate }) {
       <StatusBar barStyle="light-content" />
 
       <LinearGradient
-        colors={["#A63FDC", "#B95BE9"]}
+        colors={["#17061f", "transparent"]}
         style={styles.header}
       >
         <Image
@@ -39,8 +39,6 @@ export default function MapScreen({ onNavigate }) {
         />
 
         <Text style={styles.headerTitle}>Maps</Text>
-
-        <Text style={styles.downArrow}>⌄</Text>
       </LinearGradient>
 
       <View style={styles.mapContainer}>
@@ -157,7 +155,7 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    height: 185,
+    height: 110,
     paddingTop: 28,
     alignItems: "center",
     justifyContent: "flex-start",
@@ -165,14 +163,14 @@ const styles = StyleSheet.create({
 
   headerLogo: {
     position: "absolute",
-    top: 16,
+    top: 28,
     left: 17,
     width: 88,
     height: 88,
   },
 
   headerTitle: {
-    color: "#FFFFFF",
+    color: "rgba(219, 195, 239, 0.85)",
     fontSize: 40,
     fontWeight: "700",
     marginTop: 12,
