@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { Image, StatusBar, StyleSheet, Text } from "react-native";
+import { View, Image, StatusBar, StyleSheet, Text } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
+import AppLayout from "./src/layouts/AppLayout";
 import MapScreen from "./src/screens/MapScreen";
 import ChatScreen from "./src/screens/ChatScreen";
+import RadarScreen from "./src/screens/RadarScreen";
 
 export default function App() {
   const [showLanding, setShowLanding] = useState(true);
   const [currentScreen, setCurrentScreen] = useState("map");
+  const [showRadar, setShowRadar] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -21,11 +24,26 @@ export default function App() {
     return <LandingScreen />;
   }
 
-  if (currentScreen === "chat") {
-    return <ChatScreen onNavigate={setCurrentScreen} />;
-  }
+  return (
+    <View style={styles.container}>
+      <AppLayout
+        activeScreen={currentScreen}
+        onNavigate={(screen) => {
+          if (screen === "radar") {
+            setShowRadar(true);
+          } else {
+            setCurrentScreen(screen);
+          }
+        }}
+      >
+        {currentScreen === "chat" ? <ChatScreen /> : <MapScreen />}
+      </AppLayout>
 
-  return <MapScreen onNavigate={setCurrentScreen} />;
+      {showRadar && (
+        <RadarScreen onClose={() => setShowRadar(false)} />
+      )}
+    </View>
+  );
 }
 
 function LandingScreen() {
@@ -49,6 +67,11 @@ function LandingScreen() {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#000000",
+  },
+
   landingContainer: {
     flex: 1,
     alignItems: "center",

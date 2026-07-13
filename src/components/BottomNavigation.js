@@ -42,7 +42,7 @@ export default function BottomNavigation({ activeScreen, onNavigate }) {
 
         <TouchableOpacity
           style={styles.centerButton}
-          onPress={() => Alert.alert("Friendar", "Friendar Screen wird geöffnet.")}
+          onPress={() => onNavigate("radar")}
         >
           <Text style={styles.plusText}>+</Text>
         </TouchableOpacity>

@@ -11,9 +11,9 @@ import {
 } from "react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
-import BottomNavigation from "../components/BottomNavigation";
 
-export default function MapScreen({ onNavigate }) {
+
+export default function MapScreen() {
   const [selectedParty, setSelectedParty] = useState(null);
 
   function openPartyPopup(party) {
@@ -113,7 +113,7 @@ export default function MapScreen({ onNavigate }) {
         </View>
       </View>
 
-      <BottomNavigation activeScreen="map" onNavigate={onNavigate} />
+
 
       <Modal
         visible={selectedParty !== null}
