@@ -114,6 +114,9 @@ export default function RadarScreen({ onClose }) {
   const [dots, setDots] = useState([]);
   const [userCoords, setUserCoords] = useState(null);
 
+  // Lifecycle ref to prevent async loading race conditions
+  const isMounted = useRef(true);
+
   // Animation values
   const revealAnim = useRef(new Animated.Value(0.1)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
@@ -143,6 +146,8 @@ export default function RadarScreen({ onClose }) {
   const currentAngleRef = useRef(0);
 
   useEffect(() => {
+    isMounted.current = true;
+
     // 1. Load user location and populate dynamic dots relative to it
     const loadLocationAndDots = async () => {
       let lat = 48.1351; // Munich default
@@ -157,8 +162,10 @@ export default function RadarScreen({ onClose }) {
       } catch (err) {
         console.log("Error loading cached location in radar:", err);
       }
-      setUserCoords({ latitude: lat, longitude: lon });
-      setDots(generateMockDots(lat, lon));
+      if (isMounted.current) {
+        setUserCoords({ latitude: lat, longitude: lon });
+        setDots(generateMockDots(lat, lon));
+      }
     };
 
     loadLocationAndDots();
@@ -175,12 +182,14 @@ export default function RadarScreen({ onClose }) {
       duration: 450,
       useNativeDriver: true,
     }).start(() => {
+      if (!isMounted.current) return;
       // 5. Once the reveal circle covers the screen, fade in the Radar content container
       Animated.timing(contentOpacity, {
         toValue: 1,
         duration: 350,
         useNativeDriver: true,
       }).start(() => {
+        if (!isMounted.current) return;
         // 6. Pop in the central avatar with a spring physics animation
         Animated.spring(avatarScale, {
           toValue: 1,
@@ -221,6 +230,7 @@ export default function RadarScreen({ onClose }) {
 
     // Cleanup resources on unmount
     return () => {
+      isMounted.current = false;
       unsubscribeSensors();
       cleanupAudio();
     };
@@ -236,6 +246,7 @@ export default function RadarScreen({ onClose }) {
 
     Accelerometer.setUpdateInterval(40); // 40ms updates for buttery-smooth responsiveness
     const sub = Accelerometer.addListener((data) => {
+      if (!isMounted.current) return;
       const { x, y } = data;
 
       // 1. Low-Pass Filter (LPF) to filter out jitter/hand tremors (alpha = 0.15)
@@ -285,12 +296,20 @@ export default function RadarScreen({ onClose }) {
       const { sound } = await Audio.Sound.createAsync(
         require("../../assets/sounds/radar.wav"),
         {
-          shouldPlay: true,
+          shouldPlay: false, // Load paused
           isLooping: true,
           volume: 0, // Start at 0 volume for smooth fade-in
         }
       );
+
+      // Abort if unmounted during network/disk loading time
+      if (!isMounted.current) {
+        await sound.unloadAsync();
+        return;
+      }
+
       soundRef.current = sound;
+      await sound.playAsync();
 
       // Fade in the volume
       fadeInSound(sound);
@@ -370,6 +389,8 @@ export default function RadarScreen({ onClose }) {
   };
 
   const handleClose = async () => {
+    isMounted.current = false; // Mark unmounted immediately to abort any async loading callbacks!
+
     // 1. Fade out the sound first/in parallel with exit animations
     fadeOutAndUnloadSound();
 
