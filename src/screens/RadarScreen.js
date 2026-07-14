@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   StyleSheet,
@@ -8,10 +8,12 @@ import {
   StatusBar,
   Image,
   Text,
+  Pressable,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Accelerometer } from "expo-sensors";
 import { Audio } from "expo-av";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CENTER = 225; // Center of the 450x450 radar container
@@ -28,41 +30,90 @@ const CIRCLE_COLORS = [
   "rgba(219, 165, 255, 0.65)",
 ];
 
-// Dots distribution based on the screenshot
-const DOTS_DATA = [
-  // Circle 1 (r=55)
-  { circleIndex: 0, angle: 75, size: 14 },
-  { circleIndex: 0, angle: 105, size: 14 },
-  { circleIndex: 0, angle: 220, size: 14 },
-  { circleIndex: 0, angle: 320, size: 14 },
+const generateMockDots = (userLat, userLon) => {
+  const list = [];
 
-  // Circle 2 (r=95)
-  { circleIndex: 1, angle: 30, size: 14 },
-  { circleIndex: 1, angle: 140, size: 14 },
-  { circleIndex: 1, angle: 250, size: 14 },
-  { circleIndex: 1, angle: 280, size: 14 },
+  // 3 Friends with actual profile pic URLs from loremflickr
+  const friends = [
+    { id: "friend1", username: "Sarah", img: "https://loremflickr.com/120/120/girl,portrait,face/all?lock=10", r: 85, angle: 45 },
+    { id: "friend2", username: "Alex", img: "https://loremflickr.com/120/120/boy,portrait,face/all?lock=20", r: 155, angle: 210 },
+    { id: "friend3", username: "Sophia", img: "https://loremflickr.com/120/120/woman,portrait,face/all?lock=30", r: 195, angle: 315 },
+  ];
 
-  // Circle 3 (r=135)
-  { circleIndex: 2, angle: 0, size: 14 },
-  { circleIndex: 2, angle: 90, size: 14 },
-  { circleIndex: 2, angle: 190, size: 14 },
-  { circleIndex: 2, angle: 290, size: 14 },
+  friends.forEach(f => {
+    const angleRad = (f.angle * Math.PI) / 180;
+    const x = f.r * Math.cos(angleRad);
+    const y = f.r * Math.sin(angleRad);
 
-  // Circle 4 (r=175)
-  { circleIndex: 3, angle: 60, size: 16 },
-  { circleIndex: 3, angle: 120, size: 16 },
-  { circleIndex: 3, angle: 200, size: 14 },
-  { circleIndex: 3, angle: 340, size: 14 },
+    // Back-calculate lat/lon offsets
+    const MAX_RANGE_DEG = 0.0045; // 500m
+    const scale = 215 / MAX_RANGE_DEG;
+    const dLon = x / scale;
+    const dLat = -y / scale;
 
-  // Circle 5 (r=215)
-  { circleIndex: 4, angle: 15, size: 16 },
-  { circleIndex: 4, angle: 100, size: 16 },
-  { circleIndex: 4, angle: 165, size: 16 },
-  { circleIndex: 4, angle: 245, size: 14 },
-  { circleIndex: 4, angle: 305, size: 14 },
-];
+    const userLatRad = (userLat * Math.PI) / 180;
+    const lon = userLon + dLon / Math.cos(userLatRad);
+    const lat = userLat + dLat;
+
+    list.push({
+      user_id: f.id,
+      username: f.username,
+      profile_pic_url: f.img,
+      coordinates: { lat, lon, accuracy: 10 },
+      x,
+      y,
+      size: 40, // Increased from 36 for better readability
+      distanceMeters: Math.round((f.r / 215) * 500),
+      isFriend: true
+    });
+  });
+
+  // 15 Anonymous/Black dots
+  const anonConfig = [
+    { r: 40, angle: 120 }, { r: 50, angle: 280 }, { r: 70, angle: 10 }, { r: 90, angle: 160 },
+    { r: 100, angle: 300 }, { r: 120, angle: 75 }, { r: 130, angle: 220 }, { r: 140, angle: 340 },
+    { r: 160, angle: 105 }, { r: 170, angle: 190 }, { r: 180, angle: 270 }, { r: 200, angle: 15 },
+    { r: 205, angle: 140 }, { r: 210, angle: 245 }, { r: 215, angle: 90 }
+  ];
+
+  anonConfig.forEach((cfg, idx) => {
+    const angleRad = (cfg.angle * Math.PI) / 180;
+    const x = cfg.r * Math.cos(angleRad);
+    const y = cfg.r * Math.sin(angleRad);
+
+    const MAX_RANGE_DEG = 0.0045;
+    const scale = 215 / MAX_RANGE_DEG;
+    const dLon = x / scale;
+    const dLat = -y / scale;
+
+    const userLatRad = (userLat * Math.PI) / 180;
+    const lon = userLon + dLon / Math.cos(userLatRad);
+    const lat = userLat + dLat;
+
+    const isTopHalf = y < 0;
+
+    list.push({
+      user_id: `anon_${idx}`,
+      username: null,
+      profile_pic_url: null,
+      coordinates: { lat, lon, accuracy: 25 },
+      x,
+      y,
+      size: 18, // Increased from 14 for easier visual tracking and interaction
+      distanceMeters: Math.round((cfg.r / 215) * 500),
+      isFriend: false,
+      isTopHalf
+    });
+  });
+
+  return list;
+};
 
 export default function RadarScreen({ onClose }) {
+  const [selectedDot, setSelectedDot] = useState(null);
+  const [dots, setDots] = useState([]);
+  const [userCoords, setUserCoords] = useState(null);
+
   // Animation values
   const revealAnim = useRef(new Animated.Value(0.1)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
@@ -92,25 +143,45 @@ export default function RadarScreen({ onClose }) {
   const currentAngleRef = useRef(0);
 
   useEffect(() => {
-    // 1. Configure and play the radar audio
+    // 1. Load user location and populate dynamic dots relative to it
+    const loadLocationAndDots = async () => {
+      let lat = 48.1351; // Munich default
+      let lon = 11.5820;
+      try {
+        const cached = await AsyncStorage.getItem("user_cached_location");
+        if (cached) {
+          const coords = JSON.parse(cached);
+          lat = coords.latitude;
+          lon = coords.longitude;
+        }
+      } catch (err) {
+        console.log("Error loading cached location in radar:", err);
+      }
+      setUserCoords({ latitude: lat, longitude: lon });
+      setDots(generateMockDots(lat, lon));
+    };
+
+    loadLocationAndDots();
+
+    // 2. Configure and play the radar audio
     loadAndPlaySound();
 
-    // 2. Configure and subscribe to accelerometer sensor updates
+    // 3. Configure and subscribe to accelerometer sensor updates
     subscribeSensors();
 
-    // 3. Trigger the circular reveal scale animation from the plus button
+    // 4. Trigger the circular reveal scale animation from the plus button
     Animated.timing(revealAnim, {
       toValue: 35,
       duration: 450,
       useNativeDriver: true,
     }).start(() => {
-      // 4. Once the reveal circle covers the screen, fade in the Radar content container
+      // 5. Once the reveal circle covers the screen, fade in the Radar content container
       Animated.timing(contentOpacity, {
         toValue: 1,
         duration: 350,
         useNativeDriver: true,
       }).start(() => {
-        // 5. Pop in the central avatar with a spring physics animation
+        // 6. Pop in the central avatar with a spring physics animation
         Animated.spring(avatarScale, {
           toValue: 1,
           tension: 40,
@@ -118,7 +189,7 @@ export default function RadarScreen({ onClose }) {
           useNativeDriver: true,
         }).start();
 
-        // 6. Stagger the fade-in of the concentric circles progressively outwards
+        // 7. Stagger the fade-in of the concentric circles progressively outwards
         Animated.stagger(
           120,
           circleOpacities.map((anim) =>
@@ -132,7 +203,7 @@ export default function RadarScreen({ onClose }) {
       });
     });
 
-    // 7. Start the breathing loop for the active radar dots
+    // 8. Start the breathing loop for the active radar dots
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -333,17 +404,21 @@ export default function RadarScreen({ onClose }) {
     });
   };
 
-  // Trigonometry helper to position dots along the circle paths
-  const getDotStyle = (radius, angle, size) => {
-    const angleRad = (angle * Math.PI) / 180;
-    const x = radius * Math.cos(angleRad);
-    const y = radius * Math.sin(angleRad);
+  const handleDotPress = (dot) => {
+    if (selectedDot?.user_id === dot.user_id) {
+      setSelectedDot(null); // Deselect if pressed again
+    } else {
+      setSelectedDot(dot);
+    }
+  };
 
-    // If y is negative (above the center coordinate), it's in the top half.
-    // We style it dark purple. If y is positive, it's bottom half, style it black.
-    const isTopHalf = y < 0;
-    const backgroundColor = isTopHalf ? "#230538" : "#000000";
+  const handleBackgroundPress = () => {
+    if (selectedDot) {
+      setSelectedDot(null);
+    }
+  };
 
+  const getDotStyle = (x, y, size) => {
     return {
       position: "absolute",
       left: CENTER + x - size / 2,
@@ -351,12 +426,11 @@ export default function RadarScreen({ onClose }) {
       width: size,
       height: size,
       borderRadius: size / 2,
-      backgroundColor,
       shadowColor: "#000000",
-      shadowOpacity: 0.2,
+      shadowOpacity: 0.25,
       shadowRadius: 3,
       shadowOffset: { width: 0, height: 1 },
-      elevation: 2,
+      elevation: 3,
     };
   };
 
@@ -389,10 +463,12 @@ export default function RadarScreen({ onClose }) {
           },
         ]}
       >
-        <LinearGradient
-          colors={["#8F4CC7", "#130022"]}
-          style={StyleSheet.absoluteFillObject}
-        />
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={handleBackgroundPress}>
+          <LinearGradient
+            colors={["#8F4CC7", "#130022"]}
+            style={StyleSheet.absoluteFillObject}
+          />
+        </Pressable>
 
         {/* Radar concentric layout container */}
         <View style={styles.radarContainer}>
@@ -409,39 +485,67 @@ export default function RadarScreen({ onClose }) {
               const circleOpacity = circleOpacities[index];
 
               return (
-                <React.Fragment key={`circle-${index}`}>
-                  {/* Concentric Circle Line */}
-                  <Animated.View
-                    style={[
-                      styles.radarCircle,
-                      {
-                        width: radius * 2,
-                        height: radius * 2,
-                        borderRadius: radius,
-                        left: CENTER - radius,
-                        top: CENTER - radius,
-                        borderColor: CIRCLE_COLORS[index],
-                        opacity: circleOpacity,
-                      },
-                    ]}
-                  />
+                <Animated.View
+                  key={`circle-${index}`}
+                  style={[
+                    styles.radarCircle,
+                    {
+                      width: radius * 2,
+                      height: radius * 2,
+                      borderRadius: radius,
+                      left: CENTER - radius,
+                      top: CENTER - radius,
+                      borderColor: CIRCLE_COLORS[index],
+                      opacity: circleOpacity,
+                    },
+                  ]}
+                />
+              );
+            })}
 
-                  {/* Dots on this circle */}
-                  {DOTS_DATA.filter((dot) => dot.circleIndex === index).map(
-                    (dot, dotIdx) => (
-                      <Animated.View
-                        key={`dot-${index}-${dotIdx}`}
+            {/* Dynamic radar dots */}
+            {dots.map((dot) => {
+              const isSelected = selectedDot?.user_id === dot.user_id;
+              const hasSelection = selectedDot !== null;
+
+              const dotScale = isSelected ? 1.5 : (hasSelection ? 0.7 : pulseAnim);
+              const dotOpacity = isSelected ? 1.0 : (hasSelection ? 0.45 : 1.0);
+
+              return (
+                <Animated.View
+                  key={dot.user_id}
+                  style={[
+                    getDotStyle(dot.x, dot.y, dot.size),
+                    {
+                      opacity: dotOpacity,
+                      transform: [{ scale: dotScale }],
+                    },
+                  ]}
+                >
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => handleDotPress(dot)}
+                    style={styles.touchableDot}
+                    hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }} // Expand touch bounds to 44x44+ for touch target compliance
+                  >
+                    {dot.profile_pic_url ? (
+                      <Image
+                        source={{ uri: dot.profile_pic_url }}
                         style={[
-                          getDotStyle(radius, dot.angle, dot.size),
-                          {
-                            opacity: circleOpacity,
-                            transform: [{ scale: pulseAnim }],
-                          },
+                          styles.friendAvatar,
+                          { borderColor: isSelected ? "#FF2E93" : "#FFFFFF" }
                         ]}
                       />
-                    )
-                  )}
-                </React.Fragment>
+                    ) : (
+                      <View
+                        style={[
+                          styles.innerDot,
+                          { backgroundColor: dot.isTopHalf ? "#8F4CC7" : "#000000" }
+                        ]}
+                      />
+                    )}
+                  </TouchableOpacity>
+                </Animated.View>
               );
             })}
           </Animated.View>
@@ -461,6 +565,41 @@ export default function RadarScreen({ onClose }) {
             />
           </Animated.View>
         </View>
+
+        {/* Selected Dot Glassmorphic Details Card */}
+        {selectedDot && (
+          <View style={styles.detailsCard}>
+            {selectedDot.profile_pic_url ? (
+              <Image
+                source={{ uri: selectedDot.profile_pic_url }}
+                style={styles.cardAvatar}
+              />
+            ) : (
+              <View style={styles.cardAnonAvatar}>
+                <Text style={styles.cardAnonIcon}>👤</Text>
+              </View>
+            )}
+
+            <View style={styles.cardTextContainer}>
+              <Text style={styles.cardTitle}>
+                {selectedDot.username || "Mystery User"}
+              </Text>
+              <Text style={styles.cardSubtitle}>
+                {selectedDot.distanceMeters}m away • {selectedDot.isFriend ? "98% Screen-Free" : "Nearby Social Zone"}
+              </Text>
+            </View>
+
+            {selectedDot.isFriend ? (
+              <TouchableOpacity style={styles.cardButton} activeOpacity={0.8}>
+                <Text style={styles.cardButtonText}>Say Hello</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.cardAnonButton} activeOpacity={0.8}>
+                <Text style={styles.cardAnonButtonText}>Send Wave</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {/* Close Button */}
         <TouchableOpacity
@@ -553,6 +692,122 @@ const styles = StyleSheet.create({
   closeIcon: {
     color: "#FFFFFF",
     fontSize: 16,
+    fontWeight: "600",
+  },
+
+  touchableDot: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 99,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  friendAvatar: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 99,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    resizeMode: "cover",
+  },
+
+  innerDot: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 99,
+  },
+
+  detailsCard: {
+    position: "absolute",
+    bottom: 40,
+    left: 24,
+    right: 24,
+    backgroundColor: "rgba(25, 10, 42, 0.85)", // rich translucent purple glassmorphism
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.15)",
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000000",
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+
+  cardAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 2.1,
+    borderColor: "#FF2E93",
+    resizeMode: "cover",
+  },
+
+  cardAnonAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+
+  cardAnonIcon: {
+    fontSize: 22,
+    color: "rgba(255, 255, 255, 0.6)",
+  },
+
+  cardTextContainer: {
+    flex: 1,
+    marginLeft: 14,
+  },
+
+  cardTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+
+  cardSubtitle: {
+    color: "rgba(255, 255, 255, 0.6)",
+    fontSize: 13,
+    marginTop: 2,
+  },
+
+  cardButton: {
+    backgroundColor: "#FF2E93",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    shadowColor: "#FF2E93",
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+
+  cardButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+
+  cardAnonButton: {
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.4)",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+
+  cardAnonButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
     fontWeight: "600",
   },
 });
