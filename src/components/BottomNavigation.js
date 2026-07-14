@@ -8,7 +8,7 @@ import {
   Alert,
 } from "react-native";
 
-export default function BottomNavigation({ activeScreen, onNavigate }) {
+export default function BottomNavigation({ activeScreen, hidePlusButton, onNavigate }) {
   return (
     <View style={styles.wrapper}>
       <View style={styles.navBar}>
@@ -41,7 +41,8 @@ export default function BottomNavigation({ activeScreen, onNavigate }) {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.centerButton}
+          style={[styles.centerButton, hidePlusButton && { opacity: 0 }]}
+          disabled={hidePlusButton}
           onPress={() => onNavigate("radar")}
         >
           <Text style={styles.plusText}>+</Text>

@@ -10,6 +10,8 @@ import {
   Text,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Accelerometer } from "expo-sensors";
+import { Audio } from "expo-av";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CENTER = 225; // Center of the 450x450 radar container
@@ -65,6 +67,7 @@ export default function RadarScreen({ onClose }) {
   const revealAnim = useRef(new Animated.Value(0.1)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const avatarScale = useRef(new Animated.Value(0)).current;
+  const rotationAnim = useRef(new Animated.Value(0)).current;
 
   // Concentric circles opacities
   const circleOpacities = useRef([
@@ -78,20 +81,36 @@ export default function RadarScreen({ onClose }) {
   // Active ping breathing animation for dots
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
+  // Refs for sensor and audio subscriptions/instances
+  const sensorSubRef = useRef(null);
+  const soundRef = useRef(null);
+  const fadeIntervalRef = useRef(null);
+
+  // High-performance refs for Accelerometer smoothing and shortest-path calculation
+  const accelX = useRef(0);
+  const accelY = useRef(0);
+  const currentAngleRef = useRef(0);
+
   useEffect(() => {
-    // 1. Trigger the circular reveal scale animation from the plus button
+    // 1. Configure and play the radar audio
+    loadAndPlaySound();
+
+    // 2. Configure and subscribe to accelerometer sensor updates
+    subscribeSensors();
+
+    // 3. Trigger the circular reveal scale animation from the plus button
     Animated.timing(revealAnim, {
       toValue: 35,
       duration: 450,
       useNativeDriver: true,
     }).start(() => {
-      // 2. Once the reveal circle covers the screen, fade in the Radar content container
+      // 4. Once the reveal circle covers the screen, fade in the Radar content container
       Animated.timing(contentOpacity, {
         toValue: 1,
         duration: 350,
         useNativeDriver: true,
       }).start(() => {
-        // 3. Pop in the central avatar with a spring physics animation
+        // 5. Pop in the central avatar with a spring physics animation
         Animated.spring(avatarScale, {
           toValue: 1,
           tension: 40,
@@ -99,7 +118,7 @@ export default function RadarScreen({ onClose }) {
           useNativeDriver: true,
         }).start();
 
-        // 4. Stagger the fade-in of the concentric circles progressively outwards
+        // 6. Stagger the fade-in of the concentric circles progressively outwards
         Animated.stagger(
           120,
           circleOpacities.map((anim) =>
@@ -113,7 +132,7 @@ export default function RadarScreen({ onClose }) {
       });
     });
 
-    // 5. Start the breathing loop for the active radar dots
+    // 7. Start the breathing loop for the active radar dots
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -128,11 +147,162 @@ export default function RadarScreen({ onClose }) {
         }),
       ])
     ).start();
+
+    // Cleanup resources on unmount
+    return () => {
+      unsubscribeSensors();
+      cleanupAudio();
+    };
   }, []);
 
-  const handleClose = () => {
-    // Reverse transitions for a symmetric close animation
-    // First fade out circles and avatar
+  // Sensor Subscription
+  const subscribeSensors = () => {
+    // Reset smoothing and rotation state on mount/activation
+    accelX.current = 0;
+    accelY.current = 0;
+    currentAngleRef.current = 0;
+    rotationAnim.setValue(0);
+
+    Accelerometer.setUpdateInterval(40); // 40ms updates for buttery-smooth responsiveness
+    const sub = Accelerometer.addListener((data) => {
+      const { x, y } = data;
+
+      // 1. Low-Pass Filter (LPF) to filter out jitter/hand tremors (alpha = 0.15)
+      const alpha = 0.15;
+      accelX.current = alpha * x + (1 - alpha) * accelX.current;
+      accelY.current = alpha * y + (1 - alpha) * accelY.current;
+
+      // 2. Compute absolute angle based on filtered values
+      const rawAngle = Math.atan2(-accelX.current, -accelY.current) * (180 / Math.PI);
+
+      // 3. Shortest-path angular interpolation to avoid wrap-around jumps (mod 360 transition)
+      let diff = rawAngle - (currentAngleRef.current % 360);
+      diff = Math.atan2(Math.sin((diff * Math.PI) / 180), Math.cos((diff * Math.PI) / 180)) * (180 / Math.PI);
+
+      const targetAngle = currentAngleRef.current + diff;
+      currentAngleRef.current = targetAngle;
+
+      // 4. Spring animation to target angle with damping
+      Animated.spring(rotationAnim, {
+        toValue: targetAngle,
+        tension: 20,  // Lower tension for inertia feel
+        friction: 12, // High friction to prevent spring overshoot oscillations
+        useNativeDriver: true,
+      }).start();
+    });
+    sensorSubRef.current = sub;
+  };
+
+  const unsubscribeSensors = () => {
+    if (sensorSubRef.current) {
+      sensorSubRef.current.remove();
+      sensorSubRef.current = null;
+    }
+  };
+
+  // Audio Playback
+  const loadAndPlaySound = async () => {
+    try {
+      // Ensure audio plays correctly on iOS even when the physical silent switch is flipped
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        allowsRecordingIOS: false,
+        staysActiveInBackground: false,
+        shouldRouteThroughEarpieceAndroid: false,
+      });
+
+      const { sound } = await Audio.Sound.createAsync(
+        require("../../assets/sounds/radar.wav"),
+        {
+          shouldPlay: true,
+          isLooping: true,
+          volume: 0, // Start at 0 volume for smooth fade-in
+        }
+      );
+      soundRef.current = sound;
+
+      // Fade in the volume
+      fadeInSound(sound);
+    } catch (error) {
+      console.log("Error loading audio:", error);
+    }
+  };
+
+  const fadeInSound = (sound) => {
+    let vol = 0;
+    if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+
+    fadeIntervalRef.current = setInterval(async () => {
+      vol += 0.05;
+      if (vol >= 1.0) {
+        vol = 1.0;
+        clearInterval(fadeIntervalRef.current);
+        fadeIntervalRef.current = null;
+      }
+      if (sound) {
+        try {
+          await sound.setVolumeAsync(vol);
+        } catch (err) {
+          clearInterval(fadeIntervalRef.current);
+          fadeIntervalRef.current = null;
+        }
+      }
+    }, 20); // 400ms fade-in duration total
+  };
+
+  const fadeOutAndUnloadSound = () => {
+    const sound = soundRef.current;
+    if (!sound) return Promise.resolve();
+
+    let vol = 1.0;
+    if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+
+    return new Promise((resolve) => {
+      fadeIntervalRef.current = setInterval(async () => {
+        vol -= 0.05;
+        if (vol <= 0) {
+          vol = 0;
+          clearInterval(fadeIntervalRef.current);
+          fadeIntervalRef.current = null;
+          try {
+            await sound.stopAsync();
+            await sound.unloadAsync();
+            soundRef.current = null;
+          } catch (err) {
+            // silent catch
+          }
+          resolve();
+        } else {
+          if (sound) {
+            try {
+              await sound.setVolumeAsync(vol);
+            } catch (err) {
+              clearInterval(fadeIntervalRef.current);
+              fadeIntervalRef.current = null;
+              resolve();
+            }
+          }
+        }
+      }, 20); // 400ms fade-out duration total
+    });
+  };
+
+  const cleanupAudio = () => {
+    if (fadeIntervalRef.current) {
+      clearInterval(fadeIntervalRef.current);
+      fadeIntervalRef.current = null;
+    }
+    if (soundRef.current) {
+      soundRef.current.unloadAsync().catch(() => { });
+      soundRef.current = null;
+    }
+  };
+
+  const handleClose = async () => {
+    // 1. Fade out the sound first/in parallel with exit animations
+    fadeOutAndUnloadSound();
+
+    // 2. Reverse transition for a symmetric close animation
     Animated.parallel([
       Animated.timing(contentOpacity, {
         toValue: 0,
@@ -152,7 +322,7 @@ export default function RadarScreen({ onClose }) {
         })
       ),
     ]).start(() => {
-      // Then shrink the reveal circle back down to the center button location
+      // 3. Shrink the reveal circle back down to the center button location
       Animated.timing(revealAnim, {
         toValue: 0.1,
         duration: 400,
@@ -169,12 +339,8 @@ export default function RadarScreen({ onClose }) {
     const x = radius * Math.cos(angleRad);
     const y = radius * Math.sin(angleRad);
 
-    // If y is negative (sin(angle) is positive in screen space depending on direction),
-    // it's in the top half of the screen. We give it dark purple color.
-    // If y is positive, it's in the bottom half. We give it black.
-    // Standard Math.sin:
-    // angle 0 to 180: y is positive (bottom half in screen space) -> Black
-    // angle 180 to 360: y is negative (top half in screen space) -> Dark Purple
+    // If y is negative (above the center coordinate), it's in the top half.
+    // We style it dark purple. If y is positive, it's bottom half, style it black.
     const isTopHalf = y < 0;
     const backgroundColor = isTopHalf ? "#230538" : "#000000";
 
@@ -193,6 +359,12 @@ export default function RadarScreen({ onClose }) {
       elevation: 2,
     };
   };
+
+  // Interpolate the rotation animation value into degree units
+  const rotationInterpolate = rotationAnim.interpolate({
+    inputRange: [-180, 180],
+    outputRange: ["-180deg", "180deg"],
+  });
 
   return (
     <View style={styles.fullscreenContainer}>
@@ -222,49 +394,59 @@ export default function RadarScreen({ onClose }) {
           style={StyleSheet.absoluteFillObject}
         />
 
-        {/* Radar concentric layout */}
+        {/* Radar concentric layout container */}
         <View style={styles.radarContainer}>
-          {CIRCLE_RADII.map((radius, index) => {
-            const circleOpacity = circleOpacities[index];
+          {/* Animated sub-wrapper to rotate circles & dots based on accelerometer tilt */}
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFillObject,
+              {
+                transform: [{ rotate: rotationInterpolate }],
+              },
+            ]}
+          >
+            {CIRCLE_RADII.map((radius, index) => {
+              const circleOpacity = circleOpacities[index];
 
-            return (
-              <React.Fragment key={`circle-${index}`}>
-                {/* Concentric Circle Line */}
-                <Animated.View
-                  style={[
-                    styles.radarCircle,
-                    {
-                      width: radius * 2,
-                      height: radius * 2,
-                      borderRadius: radius,
-                      left: CENTER - radius,
-                      top: CENTER - radius,
-                      borderColor: CIRCLE_COLORS[index],
-                      opacity: circleOpacity,
-                    },
-                  ]}
-                />
+              return (
+                <React.Fragment key={`circle-${index}`}>
+                  {/* Concentric Circle Line */}
+                  <Animated.View
+                    style={[
+                      styles.radarCircle,
+                      {
+                        width: radius * 2,
+                        height: radius * 2,
+                        borderRadius: radius,
+                        left: CENTER - radius,
+                        top: CENTER - radius,
+                        borderColor: CIRCLE_COLORS[index],
+                        opacity: circleOpacity,
+                      },
+                    ]}
+                  />
 
-                {/* Dots on this circle */}
-                {DOTS_DATA.filter((dot) => dot.circleIndex === index).map(
-                  (dot, dotIdx) => (
-                    <Animated.View
-                      key={`dot-${index}-${dotIdx}`}
-                      style={[
-                        getDotStyle(radius, dot.angle, dot.size),
-                        {
-                          opacity: circleOpacity,
-                          transform: [{ scale: pulseAnim }],
-                        },
-                      ]}
-                    />
-                  )
-                )}
-              </React.Fragment>
-            );
-          })}
+                  {/* Dots on this circle */}
+                  {DOTS_DATA.filter((dot) => dot.circleIndex === index).map(
+                    (dot, dotIdx) => (
+                      <Animated.View
+                        key={`dot-${index}-${dotIdx}`}
+                        style={[
+                          getDotStyle(radius, dot.angle, dot.size),
+                          {
+                            opacity: circleOpacity,
+                            transform: [{ scale: pulseAnim }],
+                          },
+                        ]}
+                      />
+                    )
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </Animated.View>
 
-          {/* Central Avatar */}
+          {/* Central Avatar (Rendered outside the rotating sub-wrapper so it stays upright) */}
           <Animated.View
             style={[
               styles.avatarContainer,

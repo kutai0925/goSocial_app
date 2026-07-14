@@ -28,6 +28,7 @@ export default function App() {
     <View style={styles.container}>
       <AppLayout
         activeScreen={currentScreen}
+        hidePlusButton={showRadar}
         onNavigate={(screen) => {
           if (screen === "radar") {
             setShowRadar(true);
