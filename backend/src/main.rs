@@ -38,6 +38,7 @@ async fn main() {
         .route("/v1/users/{user_id}", delete(del_user))
         .route("/v1/users/{user_id}/coordinates", put(try_set_location))
         .route("/v1/users/{user_id}", get(try_get_user))
+        .route("/v1/users/nearby", get(try_get_all_users))
         .with_state(shared_state);
 
     // creating the listener and binding it to the expo address
@@ -152,6 +153,11 @@ async fn try_get_user(State(state): State<AppState>, Path(path): Path<String>)
         Some(u) => return Ok(Json(u.clone())),
         None => return Err(StatusCode::BAD_REQUEST)
     }
+}
+
+// handler which returns all the users in a json
+async fn try_get_all_users(State(state): State<AppState>) -> Json<Vec<User>> {
+    Json(state.users.lock().unwrap().values().cloned().collect())
 }
 
 //***********************************************************************************************************
