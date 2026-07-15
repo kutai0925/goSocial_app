@@ -56,6 +56,7 @@ export default function BottomNavigation({ activeScreen, hidePlusButton, onNavig
             source={require("../../assets/icons/notification.png")}
             style={[
               styles.icon,
+              styles.scaledIcon,
               activeScreen === "notifications" && styles.activeIcon,
             ]}
             resizeMode="contain"
@@ -70,6 +71,7 @@ export default function BottomNavigation({ activeScreen, hidePlusButton, onNavig
             source={require("../../assets/icons/profile.png")}
             style={[
               styles.icon,
+              styles.scaledIcon,
               activeScreen === "profile" && styles.activeIcon,
             ]}
             resizeMode="contain"
@@ -108,6 +110,11 @@ const styles = StyleSheet.create({
     height: 25,
     tintColor: "#8EA6C1",
     opacity: 0.95,
+  },
+
+  scaledIcon: {
+    width: 20,
+    height: 20,
   },
 
   activeIcon: {

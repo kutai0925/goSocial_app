@@ -10,6 +10,7 @@ import {
   StatusBar,
   ActivityIndicator,
   TextInput,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import MapView, { Marker } from "react-native-maps";
@@ -148,21 +149,18 @@ export default function MapScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
+      {/* Top status bar scrim / protection gradient */}
       <LinearGradient
         colors={["#17061f", "transparent"]}
-        style={styles.header}
-      >
-        <Image
-          source={require("../../assets/images/gosocial_logo_512x512.png")}
-          style={styles.headerLogo}
-          resizeMode="contain"
-        />
-
-        <Text style={styles.headerTitle}>Maps</Text>
-      </LinearGradient>
+        style={styles.statusBarScrim}
+      />
 
       <View style={styles.searchContainer}>
-        <Text style={styles.searchIcon}>🔍</Text>
+        <Image
+          source={require("../../assets/images/gosocial_logo_512x512.png")}
+          style={styles.searchLogo}
+          resizeMode="contain"
+        />
         <TextInput
           style={styles.searchInput}
           placeholder="Search events, places, categories..."
@@ -252,42 +250,19 @@ const styles = StyleSheet.create({
     backgroundColor: "#4B155F",
   },
 
-  header: {
-    height: 110,
-    paddingTop: 28,
-    alignItems: "center",
-    justifyContent: "flex-start",
+  statusBarScrim: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
+    height: Platform.OS === "ios" ? 115 : 95,
     zIndex: 10,
   },
 
-  headerLogo: {
-    position: "absolute",
-    top: 28,
-    left: 17,
-    width: 88,
-    height: 88,
-  },
-
-  headerTitle: {
-    color: "rgba(219, 195, 239, 0.85)",
-    fontSize: 40,
-    fontWeight: "700",
-    marginTop: 12,
-    textShadowColor: "rgba(0, 0, 0, 0.35)",
-    textShadowOffset: {
-      width: 3,
-      height: 4,
-    },
-    textShadowRadius: 6,
-  },
 
   searchContainer: {
     position: "absolute",
-    top: 118,
+    top: Platform.OS === "ios" ? 54 : 36,
     left: 16,
     right: 16,
     zIndex: 20,
@@ -299,10 +274,16 @@ const styles = StyleSheet.create({
     height: 48,
     borderWidth: 1,
     borderColor: "rgba(184, 60, 255, 0.4)",
+    shadowColor: "#000000",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
   },
 
-  searchIcon: {
-    fontSize: 16,
+  searchLogo: {
+    width: 26,
+    height: 26,
     marginRight: 10,
   },
 

@@ -33,11 +33,11 @@ const CIRCLE_COLORS = [
 const generateMockDots = (userLat, userLon) => {
   const list = [];
 
-  // 3 Friends with actual profile pic URLs from loremflickr
+  // 3 Friends with actual profile pic URLs from Unsplash (HTTPS secure & highly reliable)
   const friends = [
-    { id: "friend1", username: "Sarah", img: "https://loremflickr.com/120/120/girl,portrait,face/all?lock=10", r: 85, angle: 45 },
-    { id: "friend2", username: "Alex", img: "https://loremflickr.com/120/120/boy,portrait,face/all?lock=20", r: 155, angle: 210 },
-    { id: "friend3", username: "Sophia", img: "https://loremflickr.com/120/120/woman,portrait,face/all?lock=30", r: 195, angle: 315 },
+    { id: "friend1", username: "Sarah", img: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop", r: 85, angle: 45 },
+    { id: "friend2", username: "Alex", img: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop", r: 155, angle: 210 },
+    { id: "friend3", username: "Sophia", img: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=120&h=120&fit=crop", r: 195, angle: 315 },
   ];
 
   friends.forEach(f => {
@@ -113,6 +113,7 @@ export default function RadarScreen({ onClose }) {
   const [selectedDot, setSelectedDot] = useState(null);
   const [dots, setDots] = useState([]);
   const [userCoords, setUserCoords] = useState(null);
+  const [failedImages, setFailedImages] = useState({});
 
   // Lifecycle ref to prevent async loading race conditions
   const isMounted = useRef(true);
@@ -627,14 +628,33 @@ export default function RadarScreen({ onClose }) {
                     style={styles.touchableDot}
                     hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }} // Expand touch bounds to 44x44+ for touch target compliance
                   >
-                    {dot.profile_pic_url ? (
+                    {dot.profile_pic_url && !failedImages[dot.user_id] ? (
                       <Image
                         source={{ uri: dot.profile_pic_url }}
+                        onError={() => {
+                          setFailedImages((prev) => ({ ...prev, [dot.user_id]: true }));
+                        }}
                         style={[
                           styles.friendAvatar,
                           { borderColor: isSelected ? "#FF2E93" : "#FFFFFF" }
                         ]}
                       />
+                    ) : dot.isFriend ? (
+                      <View
+                        style={[
+                          styles.friendAvatar,
+                          {
+                            borderColor: isSelected ? "#FF2E93" : "#FFFFFF",
+                            backgroundColor: "#8F4CC7",
+                            alignItems: "center",
+                            justifyContent: "center"
+                          }
+                        ]}
+                      >
+                        <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 13 }}>
+                          {dot.username ? dot.username[0] : "?"}
+                        </Text>
+                      </View>
                     ) : (
                       <View
                         style={[
@@ -718,6 +738,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "transparent",
     zIndex: 9999,
+    elevation: 9999,
   },
 
   revealCircle: {
