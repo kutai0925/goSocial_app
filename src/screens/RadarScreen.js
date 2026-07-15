@@ -132,6 +132,17 @@ export default function RadarScreen({ onClose }) {
     new Animated.Value(0),
   ]).current;
 
+  // Concentric circles scales for audio-pulsing animation
+  const circleScales = useRef([
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+  ]).current;
+
+  const lastTriggeredBeepRef = useRef(-1);
+
   // Active ping breathing animation for dots
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -283,6 +294,63 @@ export default function RadarScreen({ onClose }) {
     }
   };
 
+  const triggerPulseWave = () => {
+    // Reset scales to 1 first
+    circleScales.forEach(scale => scale.setValue(1));
+
+    // Staggered timing/spring animation to propagate waves outward
+    Animated.stagger(
+      60, // 60ms delay between each circle's expansion
+      circleScales.map((scale) =>
+        Animated.sequence([
+          Animated.timing(scale, {
+            toValue: 1.12,
+            duration: 120,
+            useNativeDriver: true,
+          }),
+          Animated.spring(scale, {
+            toValue: 1.0,
+            tension: 40,
+            friction: 6,
+            useNativeDriver: true,
+          }),
+        ])
+      )
+    ).start();
+  };
+
+  const onPlaybackStatusUpdate = (status) => {
+    if (!status.isLoaded || !status.isPlaying) return;
+
+    const pos = status.positionMillis;
+
+    // Define the windows for our 4 beeps (each beep window is ~400ms wide):
+    // Beep 0: 0 - 400 ms
+    // Beep 1: 2500 - 2900 ms
+    // Beep 2: 5200 - 5600 ms
+    // Beep 3: 7950 - 8350 ms
+    let currentBeepIndex = -1;
+    if (pos >= 0 && pos < 400) {
+      currentBeepIndex = 0;
+    } else if (pos >= 2500 && pos < 2900) {
+      currentBeepIndex = 1;
+    } else if (pos >= 5200 && pos < 5600) {
+      currentBeepIndex = 2;
+    } else if (pos >= 7950 && pos < 8350) {
+      currentBeepIndex = 3;
+    }
+
+    if (currentBeepIndex !== -1) {
+      if (lastTriggeredBeepRef.current !== currentBeepIndex) {
+        lastTriggeredBeepRef.current = currentBeepIndex;
+        triggerPulseWave();
+      }
+    } else {
+      // Reset the last triggered ref when we are in the silence between beeps
+      lastTriggeredBeepRef.current = -1;
+    }
+  };
+
   // Audio Playback
   const loadAndPlaySound = async () => {
     try {
@@ -310,6 +378,11 @@ export default function RadarScreen({ onClose }) {
       }
 
       soundRef.current = sound;
+
+      // Sync concentric circles with sound pings
+      sound.setOnPlaybackStatusUpdate(onPlaybackStatusUpdate);
+      await sound.setProgressUpdateIntervalAsync(40); // 40ms updates for precise beep synchronization!
+
       await sound.playAsync();
 
       // Fade in the volume
@@ -357,6 +430,7 @@ export default function RadarScreen({ onClose }) {
           fadeIntervalRef.current = null;
           try {
             await sound.stopAsync();
+            sound.setOnPlaybackStatusUpdate(null);
             await sound.unloadAsync();
             soundRef.current = null;
           } catch (err) {
@@ -384,6 +458,7 @@ export default function RadarScreen({ onClose }) {
       fadeIntervalRef.current = null;
     }
     if (soundRef.current) {
+      soundRef.current.setOnPlaybackStatusUpdate(null);
       soundRef.current.unloadAsync().catch(() => { });
       soundRef.current = null;
     }
@@ -505,6 +580,7 @@ export default function RadarScreen({ onClose }) {
           >
             {CIRCLE_RADII.map((radius, index) => {
               const circleOpacity = circleOpacities[index];
+              const circleScale = circleScales[index];
 
               return (
                 <Animated.View
@@ -519,6 +595,7 @@ export default function RadarScreen({ onClose }) {
                       top: CENTER - radius,
                       borderColor: CIRCLE_COLORS[index],
                       opacity: circleOpacity,
+                      transform: [{ scale: circleScale }],
                     },
                   ]}
                 />
