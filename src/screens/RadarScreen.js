@@ -11,7 +11,7 @@ import {
   Pressable,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Accelerometer } from "expo-sensors";
+import { Magnetometer } from "expo-sensors";
 import { Audio } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -140,9 +140,9 @@ export default function RadarScreen({ onClose }) {
   const soundRef = useRef(null);
   const fadeIntervalRef = useRef(null);
 
-  // High-performance refs for Accelerometer smoothing and shortest-path calculation
-  const accelX = useRef(0);
-  const accelY = useRef(0);
+  // High-performance refs for Magnetometer smoothing and shortest-path calculation
+  const magX = useRef(0);
+  const magY = useRef(0);
   const currentAngleRef = useRef(0);
 
   useEffect(() => {
@@ -239,23 +239,24 @@ export default function RadarScreen({ onClose }) {
   // Sensor Subscription
   const subscribeSensors = () => {
     // Reset smoothing and rotation state on mount/activation
-    accelX.current = 0;
-    accelY.current = 0;
+    magX.current = 0;
+    magY.current = 0;
     currentAngleRef.current = 0;
     rotationAnim.setValue(0);
 
-    Accelerometer.setUpdateInterval(40); // 40ms updates for buttery-smooth responsiveness
-    const sub = Accelerometer.addListener((data) => {
+    Magnetometer.setUpdateInterval(40); // 40ms updates for buttery-smooth responsiveness
+    const sub = Magnetometer.addListener((data) => {
       if (!isMounted.current) return;
       const { x, y } = data;
 
-      // 1. Low-Pass Filter (LPF) to filter out jitter/hand tremors (alpha = 0.15)
+      // 1. Low-Pass Filter (LPF) to filter out jitter/magnetic noise (alpha = 0.15)
       const alpha = 0.15;
-      accelX.current = alpha * x + (1 - alpha) * accelX.current;
-      accelY.current = alpha * y + (1 - alpha) * accelY.current;
+      magX.current = alpha * x + (1 - alpha) * magX.current;
+      magY.current = alpha * y + (1 - alpha) * magY.current;
 
-      // 2. Compute absolute angle based on filtered values
-      const rawAngle = Math.atan2(-accelX.current, -accelY.current) * (180 / Math.PI);
+      // 2. Compute angle for compass orientation (targetAngle = -heading)
+      // Math.atan2(x, y) gives the correct -heading angle in radians directly.
+      const rawAngle = Math.atan2(magX.current, magY.current) * (180 / Math.PI);
 
       // 3. Shortest-path angular interpolation to avoid wrap-around jumps (mod 360 transition)
       let diff = rawAngle - (currentAngleRef.current % 360);
