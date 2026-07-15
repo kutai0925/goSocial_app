@@ -294,7 +294,7 @@ export default function RadarScreen({ onClose }) {
       });
 
       const { sound } = await Audio.Sound.createAsync(
-        require("../../assets/sounds/radar.wav"),
+        require("../../assets/sounds/radar.mp3"),
         {
           shouldPlay: false, // Load paused
           isLooping: true,
