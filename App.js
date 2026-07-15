@@ -6,9 +6,13 @@ import AppLayout from "./src/layouts/AppLayout";
 import MapScreen from "./src/screens/MapScreen";
 import ChatScreen from "./src/screens/ChatScreen";
 import RadarScreen from "./src/screens/RadarScreen";
+import LoginScreen from "./src/screens/LoginScreen";
+import SignUpScreen from "./src/screens/SignUpScreen";
 
 export default function App() {
   const [showLanding, setShowLanding] = useState(true);
+  const [authScreen, setAuthScreen] = useState("login");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentScreen, setCurrentScreen] = useState("map");
   const [showRadar, setShowRadar] = useState(false);
 
@@ -22,6 +26,24 @@ export default function App() {
 
   if (showLanding) {
     return <LandingScreen />;
+  }
+
+  if (!isAuthenticated) {
+    if (authScreen === "signup") {
+      return (
+        <SignUpScreen
+          onSignUpComplete={() => setIsAuthenticated(true)}
+          onBackToLogin={() => setAuthScreen("login")}
+        />
+      );
+    }
+
+    return (
+      <LoginScreen
+        onLogin={() => setIsAuthenticated(true)}
+        onNavigateToSignUp={() => setAuthScreen("signup")}
+      />
+    );
   }
 
   return (
