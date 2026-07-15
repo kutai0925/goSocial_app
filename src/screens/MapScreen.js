@@ -9,83 +9,43 @@ import {
   Image,
   StatusBar,
   ActivityIndicator,
+  TextInput,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import eventsData from "../data/events.json";
 
 const CACHE_KEY = "user_cached_location";
 
-// Helper to generate coordinates offset from user location to display mock markers nearby
+// Place the dummy events around the user location using each event's stored offset
 const generateNearbyMarkers = (lat, lon) => {
-  return [
-    {
-      id: "party1",
-      type: "party",
-      latitude: lat + 0.0035,
-      longitude: lon - 0.0045,
-      title: "80s Party",
-      locationName: "Retro Club Munich",
-      time: "Tonight · 22:00",
-      description: "Classic 80s music, retro lights and old-school vibes.",
-    },
-    {
-      id: "party2",
-      type: "party",
-      latitude: lat - 0.0025,
-      longitude: lon + 0.0055,
-      title: "Techno Party",
-      locationName: "Underground Hall",
-      time: "Tonight · 23:30",
-      description: "Dark room, heavy bass, electronic sound and techno crowd.",
-    },
-    {
-      id: "food1",
-      type: "food",
-      latitude: lat + 0.0052,
-      longitude: lon - 0.0015,
-    },
-    {
-      id: "food2",
-      type: "food",
-      latitude: lat - 0.0048,
-      longitude: lon - 0.0052,
-    },
-    {
-      id: "blue1",
-      type: "blue",
-      latitude: lat + 0.0065,
-      longitude: lon + 0.0038,
-    },
-    {
-      id: "blue2",
-      type: "blue",
-      latitude: lat - 0.0018,
-      longitude: lon - 0.0078,
-    },
-    {
-      id: "purple1",
-      type: "purple",
-      latitude: lat - 0.0055,
-      longitude: lon + 0.0028,
-    },
-    {
-      id: "yellow1",
-      type: "yellow",
-      latitude: lat + 0.0018,
-      longitude: lon + 0.0062,
-    },
-  ];
+  return eventsData.map((event) => ({
+    ...event,
+    latitude: lat + event.latOffset,
+    longitude: lon + event.lonOffset,
+  }));
 };
 
 export default function MapScreen() {
-  const [selectedParty, setSelectedParty] = useState(null);
+  const [selectedEvent, setSelectedEvent] = useState(null);
   const [location, setLocation] = useState(null);
   const [region, setRegion] = useState(null);
   const [nearbyMarkers, setNearbyMarkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredMarkers = nearbyMarkers.filter((marker) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      marker.title?.toLowerCase().includes(query) ||
+      marker.locationName?.toLowerCase().includes(query) ||
+      marker.category?.toLowerCase().includes(query)
+    );
+  });
 
   useEffect(() => {
     // 1. Initial Load: Read cached location from AsyncStorage
@@ -159,12 +119,12 @@ export default function MapScreen() {
     }
   };
 
-  const openPartyPopup = (party) => {
-    setSelectedParty(party);
+  const openEventPopup = (event) => {
+    setSelectedEvent(event);
   };
 
   const closePopup = () => {
-    setSelectedParty(null);
+    setSelectedEvent(null);
   };
 
   const getMarkerImage = (type) => {
@@ -201,6 +161,23 @@ export default function MapScreen() {
         <Text style={styles.headerTitle}>Maps</Text>
       </LinearGradient>
 
+      <View style={styles.searchContainer}>
+        <Text style={styles.searchIcon}>🔍</Text>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search events, places, categories..."
+          placeholderTextColor="rgba(255,255,255,0.5)"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCorrect={false}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery("")}>
+            <Text style={styles.clearIcon}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       <View style={styles.mapContainer}>
         {region ? (
           <MapView
@@ -209,7 +186,7 @@ export default function MapScreen() {
             showsUserLocation={true}
             showsMyLocationButton={true}
           >
-            {nearbyMarkers.map((marker) => (
+            {filteredMarkers.map((marker) => (
               <Marker
                 key={marker.id}
                 coordinate={{
@@ -217,11 +194,7 @@ export default function MapScreen() {
                   longitude: marker.longitude,
                 }}
                 image={getMarkerImage(marker.type)} // Render image natively to bypass React Native child layout bugs
-                onPress={() => {
-                  if (marker.type === "party") {
-                    openPartyPopup(marker);
-                  }
-                }}
+                onPress={() => openEventPopup(marker)}
               />
             ))}
           </MapView>
@@ -242,22 +215,25 @@ export default function MapScreen() {
       </View>
 
       <Modal
-        visible={selectedParty !== null}
+        visible={selectedEvent !== null}
         transparent={true}
         animationType="fade"
       >
         <Pressable style={styles.modalOverlay} onPress={closePopup}>
           <Pressable style={styles.popupCard}>
-            <Text style={styles.popupTitle}>{selectedParty?.title}</Text>
-            <Text style={styles.popupLocation}>{selectedParty?.locationName}</Text>
-            <Text style={styles.popupTime}>{selectedParty?.time}</Text>
+            {selectedEvent?.category && (
+              <Text style={styles.popupCategory}>{selectedEvent.category}</Text>
+            )}
+            <Text style={styles.popupTitle}>{selectedEvent?.title}</Text>
+            <Text style={styles.popupLocation}>{selectedEvent?.locationName}</Text>
+            <Text style={styles.popupTime}>{selectedEvent?.time}</Text>
 
             <Text style={styles.popupDescription}>
-              {selectedParty?.description}
+              {selectedEvent?.description}
             </Text>
 
             <TouchableOpacity style={styles.showButton} onPress={closePopup}>
-              <Text style={styles.showButtonText}>Show Party</Text>
+              <Text style={styles.showButtonText}>Show Event</Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={closePopup}>
@@ -307,6 +283,39 @@ const styles = StyleSheet.create({
       height: 4,
     },
     textShadowRadius: 6,
+  },
+
+  searchContainer: {
+    position: "absolute",
+    top: 118,
+    left: 16,
+    right: 16,
+    zIndex: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(23, 6, 31, 0.85)",
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    height: 48,
+    borderWidth: 1,
+    borderColor: "rgba(184, 60, 255, 0.4)",
+  },
+
+  searchIcon: {
+    fontSize: 16,
+    marginRight: 10,
+  },
+
+  searchInput: {
+    flex: 1,
+    color: "#FFFFFF",
+    fontSize: 15,
+  },
+
+  clearIcon: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 16,
+    paddingLeft: 10,
   },
 
   mapContainer: {
@@ -375,6 +384,15 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 30,
     fontWeight: "900",
+  },
+
+  popupCategory: {
+    color: "#8F4CC7",
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 6,
   },
 
   popupTitle: {

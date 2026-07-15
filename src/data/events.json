@@ -1,0 +1,156 @@
+[
+  {
+    "id": "party1",
+    "type": "party",
+    "category": "Party",
+    "title": "80s Party",
+    "locationName": "Retro Club Munich",
+    "time": "Tonight · 22:00",
+    "description": "Classic 80s music, retro lights and old-school vibes.",
+    "latOffset": 0.0035,
+    "lonOffset": -0.0045
+  },
+  {
+    "id": "party2",
+    "type": "party",
+    "category": "Party",
+    "title": "Techno Party",
+    "locationName": "Underground Hall",
+    "time": "Tonight · 23:30",
+    "description": "Dark room, heavy bass, electronic sound and techno crowd.",
+    "latOffset": -0.0025,
+    "lonOffset": 0.0055
+  },
+  {
+    "id": "party3",
+    "type": "party",
+    "category": "Party",
+    "title": "Rooftop Sunset Party",
+    "locationName": "Sky Lounge Munich",
+    "time": "Tonight · 19:00",
+    "description": "Chill house music with skyline views as the sun goes down.",
+    "latOffset": 0.0072,
+    "lonOffset": 0.0012
+  },
+  {
+    "id": "food1",
+    "type": "food",
+    "category": "Food",
+    "title": "Street Food Night Market",
+    "locationName": "Marienplatz Square",
+    "time": "Tonight · 18:00 - 23:00",
+    "description": "Local vendors serving international street food and desserts.",
+    "latOffset": 0.0052,
+    "lonOffset": -0.0015
+  },
+  {
+    "id": "food2",
+    "type": "food",
+    "category": "Food",
+    "title": "Bavarian Beer & Pretzel Fest",
+    "locationName": "Hofbräu Garden",
+    "time": "Tonight · 17:00",
+    "description": "Traditional Bavarian food, pretzels and local beer specials.",
+    "latOffset": -0.0048,
+    "lonOffset": -0.0052
+  },
+  {
+    "id": "food3",
+    "type": "food",
+    "category": "Food",
+    "title": "Vegan Pop-Up Kitchen",
+    "locationName": "Green Court Café",
+    "time": "Tomorrow · 12:00",
+    "description": "Plant-based dishes from a rotating guest chef collective.",
+    "latOffset": 0.0028,
+    "lonOffset": 0.0075
+  },
+  {
+    "id": "blue1",
+    "type": "blue",
+    "category": "Sports",
+    "title": "5-a-Side Football Meetup",
+    "locationName": "Olympiapark Field 3",
+    "time": "Tonight · 20:00",
+    "description": "Casual pickup football, all skill levels welcome.",
+    "latOffset": 0.0065,
+    "lonOffset": 0.0038
+  },
+  {
+    "id": "blue2",
+    "type": "blue",
+    "category": "Sports",
+    "title": "Sunset Yoga Session",
+    "locationName": "English Garden Lawn",
+    "time": "Tomorrow · 07:30",
+    "description": "Outdoor group yoga to start the day, mats provided.",
+    "latOffset": -0.0018,
+    "lonOffset": -0.0078
+  },
+  {
+    "id": "blue3",
+    "type": "blue",
+    "category": "Sports",
+    "title": "Streetball 3v3 Tournament",
+    "locationName": "Westpark Court",
+    "time": "Tonight · 16:00",
+    "description": "Fast-paced 3v3 basketball, sign up on arrival.",
+    "latOffset": -0.0062,
+    "lonOffset": 0.0065
+  },
+  {
+    "id": "purple1",
+    "type": "purple",
+    "category": "Art",
+    "title": "Open Air Art Exhibition",
+    "locationName": "Kunstpark Gallery",
+    "time": "Tonight · 18:30",
+    "description": "Local artists showcase paintings, sculptures and live sketching.",
+    "latOffset": -0.0055,
+    "lonOffset": 0.0028
+  },
+  {
+    "id": "purple2",
+    "type": "purple",
+    "category": "Art",
+    "title": "Live Mural Painting",
+    "locationName": "Glockenbach Wall",
+    "time": "Tomorrow · 14:00",
+    "description": "Watch street artists create a mural live over the afternoon.",
+    "latOffset": 0.0045,
+    "lonOffset": -0.0068
+  },
+  {
+    "id": "yellow1",
+    "type": "yellow",
+    "category": "Meetup",
+    "title": "Board Game Meetup",
+    "locationName": "Cozy Corner Café",
+    "time": "Tonight · 19:30",
+    "description": "Casual board and card games, all games provided.",
+    "latOffset": 0.0018,
+    "lonOffset": 0.0062
+  },
+  {
+    "id": "yellow2",
+    "type": "yellow",
+    "category": "Meetup",
+    "title": "Language Exchange Night",
+    "locationName": "Café Polyglot",
+    "time": "Tomorrow · 18:00",
+    "description": "Practice new languages with locals and travelers over drinks.",
+    "latOffset": -0.0038,
+    "lonOffset": 0.0018
+  },
+  {
+    "id": "yellow3",
+    "type": "yellow",
+    "category": "Meetup",
+    "title": "Photography Walk",
+    "locationName": "Isar River Path",
+    "time": "Tomorrow · 09:00",
+    "description": "Group photo walk along the river, all camera types welcome.",
+    "latOffset": 0.0082,
+    "lonOffset": -0.0032
+  }
+]
