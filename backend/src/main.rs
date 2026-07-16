@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::{Arc, Mutex}};
 
 use axum::{Json, Router, extract::{Path, State}, http::StatusCode, routing::{delete, post, put, get}};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -17,7 +18,9 @@ struct User {
     #[serde(skip_serializing)]
     password_hash: String,
     user_id: Uuid,
-    coordinates: Coordinates
+    coordinates: Coordinates,
+    #[serde(skip_serializing)]
+    messages: Vec<Message>
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -25,6 +28,13 @@ struct Coordinates {
     lat: f64,
     lon: f64,
     accuracy: i8
+}
+
+#[derive(Serialize, Deserialize, Default, Clone)]
+struct Message {
+    message: String,
+    user_id: Uuid,
+    timestamp: DateTime<Utc>
 }
 
 #[tokio::main]
@@ -39,6 +49,8 @@ async fn main() {
         .route("/v1/users/{user_id}/coordinates", put(try_set_location))
         .route("/v1/users/{user_id}", get(try_get_user))
         .route("/v1/users/nearby", get(try_get_all_users))
+        .route("/v1/messages/{user_id}", post(try_post_message))
+        .route("/v1/messages/list/{user_id}", get(try_get_messages))
         .with_state(shared_state);
 
     // creating the listener and binding it to the expo address
@@ -107,6 +119,7 @@ async fn try_login(State(state): State<AppState>, Json(payload): Json<User>)
 
 /// handler to delete a user
 /// path is used to get the userid
+#[axum::debug_handler]
 async fn del_user(State(state): State<AppState>, Path(path): Path<String>) -> StatusCode {
     // parses the path into a Uuid to use, returns SatusCode 500 on fail
     let user_id = match Uuid::parse_str(&path) {
@@ -140,6 +153,7 @@ async fn del_user(State(state): State<AppState>, Path(path): Path<String>) -> St
 /// handler for getting a specific user based on user_id
 /// path contains the user_id
 /// returns the user as json if successful
+#[axum::debug_handler]
 async fn try_get_user(State(state): State<AppState>, Path(path): Path<String>) 
 -> Result<Json<User>, StatusCode> {
     // parses the path into a Uuid to use, returns SatusCode 500 on fail
@@ -156,12 +170,13 @@ async fn try_get_user(State(state): State<AppState>, Path(path): Path<String>)
 }
 
 // handler which returns all the users in a json
+#[axum::debug_handler]
 async fn try_get_all_users(State(state): State<AppState>) -> Json<Vec<User>> {
     Json(state.users.lock().unwrap().values().cloned().collect())
 }
 
 //***********************************************************************************************************
-// Start of User data requests Handling
+// End of User data requests Handling
 //***********************************************************************************************************
 
 //***********************************************************************************************************
@@ -201,13 +216,64 @@ Json(payload): Json<Coordinates>)
 // End of Location Handling
 //***********************************************************************************************************
 
+//***********************************************************************************************************
+// Start of Message Handling
+//***********************************************************************************************************
+
+/// handler to add a messege to the list of messages TODO: auth
+#[axum::debug_handler]
+async fn try_post_message(State(state): State<AppState>, 
+Path(path): Path<String>, 
+Json(payload): Json<Message>) 
+-> StatusCode {
+    // parses the path into a Uuid to use, returns SatusCode 500 on fail
+    let user_id = match Uuid::parse_str(&path) {
+        Ok(id) => id,
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
+    };
+
+    // gets the user assositate with the user_id sent in the path, and adds the message 
+    // returns StatusCode 400 if it fails
+    match state.users.lock().unwrap().get_mut(&user_id) {
+        Some(x) => x.messages.push(Message { 
+            message: payload.message, 
+            user_id, 
+            timestamp: chrono::offset::Utc::now() }),
+        None => return StatusCode::BAD_REQUEST
+    };
+
+    StatusCode::OK
+}
+
+/// handler to get all the messages of a certain user TODO: auth
+#[axum::debug_handler]
+async fn try_get_messages(State(state): State<AppState>, Path(path): Path<String>) 
+-> Result<Json<Vec<Message>>, StatusCode> {
+    // parses the path into a Uuid to use, returns SatusCode 500 on fail
+    let user_id = match Uuid::parse_str(&path) {
+        Ok(id) => id,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    // get the user and respond with messegas if successful, or StatusCode 400 if not
+    match state.users.lock().unwrap().get(&user_id) {
+        Some(u) => return Ok(Json(u.messages.iter().cloned().collect())),
+        None => return Err(StatusCode::BAD_REQUEST)
+    }
+}
+
+//***********************************************************************************************************
+// End of Message Handling
+//***********************************************************************************************************
+
 impl User {
     fn from(username: String, password_hash: String, user_id: Uuid) -> Self {
         Self {
             username,
             password_hash,
             user_id,
-            coordinates: Coordinates::default()
+            coordinates: Coordinates::default(),
+            messages: Vec::new()
         }
     }
 }
