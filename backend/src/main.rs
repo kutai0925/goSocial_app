@@ -35,9 +35,11 @@ struct Coordinates {
 #[derive(Serialize, Deserialize, Default, Clone)]
 struct Message {
     message: String,
-    user_id: Uuid,
+    to_user_id: Uuid,
     #[serde(default)]
-    timestamp: DateTime<Utc>
+    timestamp: DateTime<Utc>,
+    #[serde(default)]
+    received: bool
 }
 
 #[tokio::main]
@@ -235,13 +237,30 @@ Json(payload): Json<Message>)
         Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
     };
 
+    // checks if the target user exists, if it does not returns StatusCode 400
+    if !state.users.lock().unwrap().contains_key(&payload.to_user_id) {
+        return StatusCode::BAD_REQUEST
+    }
+
     // gets the user assositate with the user_id sent in the path, and adds the message 
     // returns StatusCode 400 if it fails
     match state.users.lock().unwrap().get_mut(&user_id) {
         Some(x) => x.messages.push(Message { 
+            message: payload.message.clone(), 
+            to_user_id: payload.to_user_id, 
+            timestamp: chrono::offset::Utc::now(),
+            received: false }),
+        None => return StatusCode::BAD_REQUEST
+    };
+
+    // gets the user assositate with the to_user_id sent in the payload, and adds the message 
+    // returns StatusCode 400 if it fails
+    match state.users.lock().unwrap().get_mut(&payload.to_user_id) {
+        Some(x) => x.messages.push(Message { 
             message: payload.message, 
-            user_id, 
-            timestamp: chrono::offset::Utc::now() }),
+            to_user_id: user_id, 
+            timestamp: chrono::offset::Utc::now(),
+            received: true }),
         None => return StatusCode::BAD_REQUEST
     };
 
