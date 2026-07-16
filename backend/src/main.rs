@@ -17,9 +17,11 @@ struct User {
     username: String,
     #[serde(skip_serializing)]
     password_hash: String,
+    #[serde(default)]
     user_id: Uuid,
+    #[serde(default)]
     coordinates: Coordinates,
-    #[serde(skip_serializing)]
+    #[serde(default, skip_serializing)]
     messages: Vec<Message>
 }
 
@@ -34,6 +36,7 @@ struct Coordinates {
 struct Message {
     message: String,
     user_id: Uuid,
+    #[serde(default)]
     timestamp: DateTime<Utc>
 }
 
