@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,141 +15,96 @@ import {
 
 
 
-const chats = [
-  {
-    id: "1",
-    name: "Nico",
-    avatar: null,
-    lastMessage: "Bro, Friendar button funktioniert jetzt ",
-    time: "21:42",
-    unread: 0,
-    online: true,
-    messages: [
-      {
-        id: "m1",
-        text: "Hey Tony, hast du den MapScreen schon eingebaut?",
-        time: "21:34",
-        fromMe: false,
-      },
-      {
-        id: "m2",
-        text: "Ja, Splash Screen geht auch schon.",
-        time: "21:36",
-        fromMe: true,
-      },
-      {
-        id: "m3",
-        text: "Bro, Friendar button funktioniert jetzt ",
-        time: "21:42",
-        fromMe: false,
-      },
-    ],
-  },
-  {
-    id: "2",
-    name: "Michele",
-    avatar: null,
-    lastMessage: "Techno Party klingt gut!",
-    time: "20:18",
-    unread: 0,
-    online: true,
-    messages: [
-      {
-        id: "m1",
-        text: "Hast du die Party Marker gesehen?",
-        time: "20:10",
-        fromMe: true,
-      },
-      {
-        id: "m2",
-        text: "Ja, sehr nice.",
-        time: "20:14",
-        fromMe: false,
-      },
-      {
-        id: "m3",
-        text: "Techno Party klingt gut!",
-        time: "20:18",
-        fromMe: false,
-      },
-    ],
-  },
-  {
-    id: "3",
-    name: "Davide",
-    avatar: null,
-    lastMessage: "Ich mache später noch Audio Ideen.",
-    time: "18:05",
-    unread: 0,
-    online: false,
-    messages: [
-      {
-        id: "m1",
-        text: "Wir brauchen später noch Sound für die App.",
-        time: "17:55",
-        fromMe: true,
-      },
-      {
-        id: "m2",
-        text: "Ich mache später noch Audio Ideen.",
-        time: "18:05",
-        fromMe: false,
-      },
-    ],
-  },
-  {
-    id: "4",
-    name: "Louis",
-    avatar: null,
-    lastMessage: "Ich kann den Clip für Go.Social schneiden.",
-    time: "Gestern",
-    unread: 0,
-    online: false,
-    messages: [
-      {
-        id: "m1",
-        text: "Kannst du später ein kurzes Promo Video machen?",
-        time: "15:20",
-        fromMe: true,
-      },
-      {
-        id: "m2",
-        text: "Ich kann den Clip für Go.Social schneiden.",
-        time: "15:24",
-        fromMe: false,
-      },
-    ],
-  },
-  {
-    id: "5",
-    name: "Go.Social Team",
-    avatar: null,
-    lastMessage: "Next Step: Friendar Screen bauen.",
-    time: "Mo",
-    unread: 0,
-    online: true,
-    messages: [
-      {
-        id: "m1",
-        text: "Was machen wir als nächstes?",
-        time: "12:01",
-        fromMe: false,
-      },
-      {
-        id: "m2",
-        text: "Next Step: Friendar Screen bauen.",
-        time: "12:03",
-        fromMe: true,
-      },
-    ],
-  },
-];
+import { useAuth } from "../context/AuthContext";
+import { getMessages, sendMessage as sendBackendMessage } from "../api/messages";
+import { getNearbyUsers } from "../api/users";
 
 export default function ChatScreen() {
+  const { userId } = useAuth();
   const [selectedChat, setSelectedChat] = useState(null);
   const [searchText, setSearchText] = useState("");
   const [messageText, setMessageText] = useState("");
-  const [chatData, setChatData] = useState(chats);
+  const [chatData, setChatData] = useState([]);
+
+  useEffect(() => {
+    if (!userId) return;
+    let interval;
+    const fetchData = async () => {
+      try {
+        const users = await getNearbyUsers();
+        const msgList = await getMessages(userId);
+
+        const uMap = {};
+        users.forEach(u => uMap[u.user_id] = u.username);
+
+        const groups = {};
+
+        // Ensure every nearby user is in the list, even if no messages yet
+        users.forEach(u => {
+          if (u.user_id !== userId) {
+            groups[u.user_id] = {
+              id: u.user_id,
+              name: u.username || "Unknown",
+              avatar: null,
+              lastMessage: "Start a conversation",
+              time: "",
+              unread: 0,
+              online: true,
+              messages: [],
+            };
+          }
+        });
+
+        // Add actual messages
+        msgList.forEach(m => {
+          const otherId = m.to_user_id;
+          if (!groups[otherId]) {
+            groups[otherId] = {
+              id: otherId,
+              name: uMap[otherId] || "Unknown",
+              avatar: null,
+              lastMessage: m.message,
+              time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              unread: 0,
+              online: true,
+              messages: [],
+            };
+          }
+          groups[otherId].messages.push({
+            id: m.timestamp + Math.random().toString(),
+            text: m.message,
+            time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            fromMe: !m.received,
+            timestamp: new Date(m.timestamp).getTime()
+          });
+
+          groups[otherId].lastMessage = m.message;
+          groups[otherId].time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        });
+
+        Object.values(groups).forEach(g => {
+          g.messages.sort((a, b) => a.timestamp - b.timestamp);
+        });
+
+        // Only update local state if we aren't actively typing a message to prevent flicker, 
+        // or we could be smarter, but for MVP simple setChatData is fine.
+        setChatData(Object.values(groups));
+
+        // Also update selectedChat if it's open
+        setSelectedChat(prev => {
+          if (prev) return groups[prev.id] || prev;
+          return prev;
+        });
+
+      } catch (e) {
+        console.log("Error fetching chats", e);
+      }
+    };
+
+    fetchData();
+    interval = setInterval(fetchData, 3000); // refresh every 3 seconds for mvp real-time feel
+    return () => clearInterval(interval);
+  }, [userId]);
 
   const filteredChats = chatData.filter((chat) =>
     chat.name.toLowerCase().includes(searchText.toLowerCase())
@@ -163,35 +118,40 @@ export default function ChatScreen() {
     setSelectedChat(null);
   }
 
-  function sendMessage() {
+  const sendMessage = async () => {
     if (!messageText.trim() || !selectedChat) return;
 
-    const newMessage = {
-      id: Date.now().toString(),
-      text: messageText,
-      time: "Jetzt",
-      fromMe: true,
-    };
+    try {
+      await sendBackendMessage(userId, { message: messageText, toUserId: selectedChat.id });
 
-    const updatedChats = chatData.map((chat) => {
-      if (chat.id === selectedChat.id) {
-        const updatedChat = {
-          ...chat,
-          messages: [...chat.messages, newMessage],
-          lastMessage: messageText,
-          time: "Jetzt",
-        };
+      const newMessage = {
+        id: Date.now().toString(),
+        text: messageText,
+        time: "Now",
+        fromMe: true,
+        timestamp: Date.now()
+      };
 
-        setSelectedChat(updatedChat);
-        return updatedChat;
-      }
+      const updatedChats = chatData.map((chat) => {
+        if (chat.id === selectedChat.id) {
+          const updatedChat = {
+            ...chat,
+            messages: [...chat.messages, newMessage],
+            lastMessage: messageText,
+            time: "Now",
+          };
+          setSelectedChat(updatedChat);
+          return updatedChat;
+        }
+        return chat;
+      });
 
-      return chat;
-    });
-
-    setChatData(updatedChats);
-    setMessageText("");
-  }
+      setChatData(updatedChats);
+      setMessageText("");
+    } catch (e) {
+      console.log("Error sending msg", e);
+    }
+  };
 
   if (selectedChat) {
     return (

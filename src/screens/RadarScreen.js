@@ -16,6 +16,8 @@ import { Audio } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ChatPopup from "../components/ChatPopup";
 import ProfileScreen from "./ProfileScreen";
+import { useAuth } from "../context/AuthContext";
+import { getNearbyUsers } from "../api/users";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CENTER = 225; // Center of the 450x450 radar container
@@ -111,7 +113,47 @@ const generateMockDots = (userLat, userLon) => {
   return list;
 };
 
+const generateBackendDots = (users, currentUserId, userLat, userLon) => {
+  const list = [];
+  users.forEach(u => {
+    if (u.user_id === currentUserId) return;
+    if (!u.coordinates) return;
+
+    const dLat = u.coordinates.lat - userLat;
+    const userLatRad = (userLat * Math.PI) / 180;
+    const dLon = (u.coordinates.lon - userLon) * Math.cos(userLatRad);
+    
+    const MAX_RANGE_DEG = 0.0045; // 500m
+    const scale = 215 / MAX_RANGE_DEG;
+
+    const x = dLon * scale;
+    const y = -dLat * scale; // Note: -y because y axis goes down in UI
+
+    const isTopHalf = y < 0;
+    const r = Math.sqrt(x * x + y * y);
+    const distanceMeters = Math.round((r / 215) * 500);
+
+    // Only include if within radar range roughly (plus some padding)
+    if (r <= 250) {
+      list.push({
+        user_id: u.user_id,
+        username: u.username,
+        profile_pic_url: null, // the radar UI falls back to username initial
+        coordinates: u.coordinates,
+        x,
+        y,
+        size: 40,
+        distanceMeters,
+        isFriend: true,
+        isTopHalf
+      });
+    }
+  });
+  return list;
+};
+
 export default function RadarScreen({ onClose }) {
+  const { userId } = useAuth();
   const [selectedDot, setSelectedDot] = useState(null);
   const [dots, setDots] = useState([]);
   const [userCoords, setUserCoords] = useState(null);
@@ -180,7 +222,19 @@ export default function RadarScreen({ onClose }) {
       }
       if (isMounted.current) {
         setUserCoords({ latitude: lat, longitude: lon });
-        setDots(generateMockDots(lat, lon));
+        
+        // Fetch real users and combine with mock dots
+        let backendDots = [];
+        try {
+          if (userId) {
+            const users = await getNearbyUsers();
+            backendDots = generateBackendDots(users, userId, lat, lon);
+          }
+        } catch (e) {
+          console.log("Error fetching radar nearby users", e);
+        }
+
+        setDots([...generateMockDots(lat, lon), ...backendDots]);
       }
     };
 

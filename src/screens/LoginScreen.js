@@ -14,11 +14,14 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { isValidUsernameOrEmail } from "../utils/validation";
 
-export default function LoginScreen({ onLogin, onNavigateToSignUp }) {
+import { useAuth } from "../context/AuthContext";
+
+export default function LoginScreen({ onNavigateToSignUp }) {
+  const { loginUser } = useAuth();
   const [usernameOrEmail, setUsernameOrEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!usernameOrEmail.trim() || !password) {
       Alert.alert("Missing info", "Please enter your username/email and password.");
       return;
@@ -30,7 +33,12 @@ export default function LoginScreen({ onLogin, onNavigateToSignUp }) {
       );
       return;
     }
-    onLogin({ usernameOrEmail: usernameOrEmail.trim(), password });
+    try {
+      await loginUser({ username: usernameOrEmail.trim(), password });
+    } catch (err) {
+      // The error is already logged in AuthContext, can also show a toast or alert here.
+      Alert.alert("Login Failed", "Check your credentials and try again.");
+    }
   };
 
   return (

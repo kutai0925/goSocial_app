@@ -4,6 +4,7 @@ use axum::{Json, Router, extract::{Path, State}, http::StatusCode, routing::{del
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use tower_http::trace::TraceLayer;
 
 // shared App state used by the handlers to get information requried
 #[derive(Default, Clone)]
@@ -44,6 +45,8 @@ struct Message {
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt::init();
+    
     let shared_state = AppState::default(); 
 
     // create the router and set the handler for paths
@@ -56,10 +59,11 @@ async fn main() {
         .route("/v1/users/nearby", get(try_get_all_users))
         .route("/v1/messages/{user_id}", post(try_post_message))
         .route("/v1/messages/list/{user_id}", get(try_get_messages))
-        .with_state(shared_state);
+        .with_state(shared_state)
+        .layer(TraceLayer::new_for_http());
 
-    // creating the listener and binding it to the expo address
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:8081").await.unwrap();
+    // creating the listener and binding it to all network interfaces (0.0.0.0) so it works on LAN
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8888").await.unwrap();
 
     axum::serve(listener, app).await.unwrap();
 }

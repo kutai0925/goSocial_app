@@ -14,7 +14,10 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { isValidUsername, isValidEmail, isValidPassword } from "../utils/validation";
 
-export default function SignUpScreen({ onSignUpComplete, onBackToLogin }) {
+import { useAuth } from "../context/AuthContext";
+
+export default function SignUpScreen({ onBackToLogin }) {
+  const { signupUser } = useAuth();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,7 +26,7 @@ export default function SignUpScreen({ onSignUpComplete, onBackToLogin }) {
   const canSubmit =
     username.trim() && email.trim() && password && confirmPassword;
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!canSubmit) {
       Alert.alert("Missing info", "Please fill in all fields.");
       return;
@@ -50,7 +53,11 @@ export default function SignUpScreen({ onSignUpComplete, onBackToLogin }) {
       Alert.alert("Passwords don't match", "Please confirm the same password.");
       return;
     }
-    onSignUpComplete({ username: username.trim(), email: email.trim(), password });
+    try {
+      await signupUser({ username: username.trim(), email: email.trim(), password });
+    } catch (err) {
+      Alert.alert("Signup Failed", "That username or email may already be in use.");
+    }
   };
 
   return (

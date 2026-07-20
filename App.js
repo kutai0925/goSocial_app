@@ -11,10 +11,12 @@ import SignUpScreen from "./src/screens/SignUpScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import DiscoverEventScreen from "./src/screens/DiscoverEventScreen";
 
-export default function App() {
+import { AuthProvider, useAuth } from "./src/context/AuthContext";
+
+function MainApp() {
   const [showLanding, setShowLanding] = useState(true);
   const [authScreen, setAuthScreen] = useState("login");
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { isAuthenticated } = useAuth();
   const [currentScreen, setCurrentScreen] = useState("map");
   const [showRadar, setShowRadar] = useState(false);
 
@@ -34,7 +36,6 @@ export default function App() {
     if (authScreen === "signup") {
       return (
         <SignUpScreen
-          onSignUpComplete={() => setIsAuthenticated(true)}
           onBackToLogin={() => setAuthScreen("login")}
         />
       );
@@ -42,7 +43,6 @@ export default function App() {
 
     return (
       <LoginScreen
-        onLogin={() => setIsAuthenticated(true)}
         onNavigateToSignUp={() => setAuthScreen("signup")}
       />
     );
@@ -131,3 +131,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
+  );
+}

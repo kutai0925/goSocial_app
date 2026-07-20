@@ -17,6 +17,8 @@ import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import eventsData from "../data/events.json";
+import { useAuth } from "../context/AuthContext";
+import { setLocation as setBackendLocation, getNearbyUsers } from "../api/users";
 
 const CACHE_KEY = "user_cached_location";
 
@@ -30,10 +32,12 @@ const generateNearbyMarkers = (lat, lon) => {
 };
 
 export default function MapScreen() {
+  const { userId } = useAuth();
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [location, setLocation] = useState(null);
   const [region, setRegion] = useState(null);
   const [nearbyMarkers, setNearbyMarkers] = useState([]);
+  const [realUsers, setRealUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -49,12 +53,74 @@ export default function MapScreen() {
   });
 
   useEffect(() => {
-    // 1. Initial Load: Read cached location from AsyncStorage
-    loadCachedLocation();
+    let locationSubscription = null;
+    let nearbyInterval = null;
 
-    // 2. Fetch fresh location and request permission
-    requestAndFetchLocation();
-  }, []);
+    const setupLocationTracking = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setErrorMsg("Permission to access location was denied");
+          setLoading(false);
+          return;
+        }
+
+        locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            distanceInterval: 10,
+          },
+          async (freshLocation) => {
+            const { latitude, longitude, accuracy } = freshLocation.coords;
+
+            setLocation({ latitude, longitude });
+            setRegion((prev) => prev || {
+              latitude,
+              longitude,
+              latitudeDelta: 0.015,
+              longitudeDelta: 0.015,
+            });
+            setNearbyMarkers(generateNearbyMarkers(latitude, longitude));
+            setLoading(false);
+
+            await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ latitude, longitude }));
+
+            if (userId) {
+              try {
+                await setBackendLocation(userId, { lat: latitude, lon: longitude, accuracy });
+                fetchNearbyUsers();
+              } catch (e) {
+                console.log("Failed to sync location:", e);
+              }
+            }
+          }
+        );
+      } catch (err) {
+        console.log("Error getting location:", err);
+        if (!location) setErrorMsg("Could not fetch location details");
+        setLoading(false);
+      }
+    };
+
+    const fetchNearbyUsers = async () => {
+      if (!userId) return;
+      try {
+        const users = await getNearbyUsers();
+        setRealUsers(users.filter(u => u.user_id !== userId));
+      } catch (e) {
+        console.log("Error fetching nearby users", e);
+      }
+    };
+
+    loadCachedLocation();
+    setupLocationTracking();
+    nearbyInterval = setInterval(fetchNearbyUsers, 10000);
+
+    return () => {
+      if (locationSubscription) locationSubscription.remove();
+      if (nearbyInterval) clearInterval(nearbyInterval);
+    };
+  }, [userId]);
 
   const loadCachedLocation = async () => {
     try {
@@ -70,53 +136,10 @@ export default function MapScreen() {
         setLocation({ latitude, longitude });
         setRegion(cachedRegion);
         setNearbyMarkers(generateNearbyMarkers(latitude, longitude));
-        setLoading(false); // Enable map rendering immediately using cached location
+        setLoading(false); 
       }
     } catch (err) {
       console.log("Error reading cached location:", err);
-    }
-  };
-
-  const requestAndFetchLocation = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setErrorMsg("Permission to access location was denied");
-        setLoading(false);
-        return;
-      }
-
-      // Fetch fresh device GPS coordinates
-      const freshLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      const { latitude, longitude } = freshLocation.coords;
-
-      setLocation({ latitude, longitude });
-
-      const freshRegion = {
-        latitude,
-        longitude,
-        latitudeDelta: 0.015,
-        longitudeDelta: 0.015,
-      };
-      setRegion(freshRegion);
-      setNearbyMarkers(generateNearbyMarkers(latitude, longitude));
-      setLoading(false);
-
-      // Cache location for next startup & backend syncing
-      await AsyncStorage.setItem(
-        CACHE_KEY,
-        JSON.stringify({ latitude, longitude })
-      );
-    } catch (err) {
-      console.log("Error getting location:", err);
-      // Keep displaying cached location if fetching fresh fails
-      if (!location) {
-        setErrorMsg("Could not fetch location details");
-      }
-      setLoading(false);
     }
   };
 
@@ -194,6 +217,19 @@ export default function MapScreen() {
                 image={getMarkerImage(marker.type)} // Render image natively to bypass React Native child layout bugs
                 onPress={() => openEventPopup(marker)}
               />
+            ))}
+            {realUsers.map((user) => (
+              <Marker
+                key={user.user_id}
+                coordinate={{
+                  latitude: user.coordinates?.lat || 0,
+                  longitude: user.coordinates?.lon || 0,
+                }}
+              >
+                <View style={styles.userMarker}>
+                  <Text style={styles.userMarkerText}>{user.username?.charAt(0)}</Text>
+                </View>
+              </Marker>
             ))}
           </MapView>
         ) : (
@@ -421,5 +457,22 @@ const styles = StyleSheet.create({
   closeText: {
     color: "#777777",
     fontSize: 15,
+  },
+
+  userMarker: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#1DB954",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  
+  userMarkerText: {
+    color: "#FFFFFF",
+    fontWeight: "bold",
+    fontSize: 16,
   },
 });
