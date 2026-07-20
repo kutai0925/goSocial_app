@@ -8,3 +8,4 @@ const LAN_IP = "192.168.178.125";
 const HOST = LAN_IP ?? (Platform.OS === "android" ? "10.0.2.2" : "localhost");
 
 export const API_BASE_URL = `http://${HOST}:8888`;
+export const WS_BASE_URL = `ws://${HOST}:8888`;

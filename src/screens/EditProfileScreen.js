@@ -12,14 +12,30 @@ import {
   ScrollView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import * as ImagePicker from "expo-image-picker";
 
 export default function EditProfileScreen({ profile, onCancel, onSave }) {
-  const [firstName, setFirstName] = useState(profile.firstName);
-  const [lastName, setLastName] = useState(profile.lastName);
-  const [location, setLocation] = useState(profile.location);
-  const [bio, setBio] = useState(profile.bio);
+  const [firstName, setFirstName] = useState(profile.firstName || "");
+  const [lastName, setLastName] = useState(profile.lastName || "");
+  const [location, setLocation] = useState(profile.location || "");
+  const [bio, setBio] = useState(profile.bio || "");
+  const [profileImage, setProfileImage] = useState(profile.profileImage || null);
 
   const canSave = firstName.trim().length > 0 && lastName.trim().length > 0;
+
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setProfileImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
+    }
+  };
 
   const handleSave = () => {
     if (!canSave) return;
@@ -28,6 +44,7 @@ export default function EditProfileScreen({ profile, onCancel, onSave }) {
       lastName: lastName.trim(),
       location: location.trim(),
       bio: bio.trim(),
+      profileImage,
     });
   };
 
@@ -55,10 +72,14 @@ export default function EditProfileScreen({ profile, onCancel, onSave }) {
             </View>
 
             <Image
-              source={require("../../assets/images/radar_avatar.png")}
+              source={
+                profileImage
+                  ? { uri: profileImage }
+                  : require("../../assets/images/radar_avatar.png")
+              }
               style={styles.avatar}
             />
-            <TouchableOpacity>
+            <TouchableOpacity onPress={pickImage}>
               <Text style={styles.changePhotoText}>Change Photo</Text>
             </TouchableOpacity>
 

@@ -138,13 +138,14 @@ const generateBackendDots = (users, currentUserId, userLat, userLon) => {
       list.push({
         user_id: u.user_id,
         username: u.username,
-        profile_pic_url: null, // the radar UI falls back to username initial
+        profile_pic_url: u.profile_image || null, // the backend will mask this if not accepted
         coordinates: u.coordinates,
         x,
         y,
         size: 40,
         distanceMeters,
-        isFriend: true,
+        isFriend: u.relationship === "accepted",
+        relationship: u.relationship || "none",
         isTopHalf
       });
     }
@@ -227,7 +228,7 @@ export default function RadarScreen({ onClose }) {
         let backendDots = [];
         try {
           if (userId) {
-            const users = await getNearbyUsers();
+            const users = await getNearbyUsers(userId);
             backendDots = generateBackendDots(users, userId, lat, lon);
           }
         } catch (e) {
@@ -583,6 +584,20 @@ export default function RadarScreen({ onClose }) {
     });
   };
 
+  const handleSendWave = async (dot) => {
+    if (!userId || !dot.user_id || dot.user_id.startsWith("anon_") || dot.user_id.startsWith("friend")) return;
+    try {
+      // Optimistically update UI
+      setDots(prev => prev.map(d => d.user_id === dot.user_id ? { ...d, relationship: "sent" } : d));
+      setSelectedDot(prev => prev && prev.user_id === dot.user_id ? { ...prev, relationship: "sent" } : prev);
+      
+      const { sendWave } = require("../api/users");
+      await sendWave(userId, dot.user_id);
+    } catch (err) {
+      console.log("Error sending wave:", err);
+    }
+  };
+
   const closeChatPopup = () => {
     setActiveChat(null);
   };
@@ -803,8 +818,12 @@ export default function RadarScreen({ onClose }) {
               >
                 <Text style={styles.cardButtonText}>Say Hello</Text>
               </TouchableOpacity>
+            ) : selectedDot.relationship === "sent" ? (
+              <TouchableOpacity style={[styles.cardAnonButton, { opacity: 0.5 }]} disabled>
+                <Text style={styles.cardAnonButtonText}>Wave Sent</Text>
+              </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={styles.cardAnonButton} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.cardAnonButton} activeOpacity={0.8} onPress={() => handleSendWave(selectedDot)}>
                 <Text style={styles.cardAnonButtonText}>Send Wave</Text>
               </TouchableOpacity>
             )}

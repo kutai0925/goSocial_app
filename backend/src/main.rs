@@ -1,305 +1,585 @@
-use std::{collections::HashMap, sync::{Arc, Mutex}};
-
-use axum::{Json, Router, extract::{Path, State}, http::StatusCode, routing::{delete, post, put, get}};
+use axum::{
+    extract::{DefaultBodyLimit, Path, State, WebSocketUpgrade, ws::{Message as WsMessage, WebSocket}},
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{delete, get, post, put},
+    Json, Router,
+};
 use chrono::{DateTime, Utc};
+use futures::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+use sqlx::{sqlite::SqlitePoolOptions, SqlitePool, Row};
+use std::sync::Arc;
+use tokio::sync::broadcast;
 use tower_http::trace::TraceLayer;
+use uuid::Uuid;
 
-// shared App state used by the handlers to get information requried
-#[derive(Default, Clone)]
+#[derive(Clone)]
 struct AppState {
-    users: Arc<Mutex<HashMap<Uuid, User>>>,
-    names: Arc<Mutex<HashMap<String, Uuid>>>
+    db: SqlitePool,
+    tx: broadcast::Sender<String>, // global broadcast channel for ws
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 struct User {
-    username: String,
-    #[serde(skip_serializing)]
-    password_hash: String,
-    #[serde(default)]
     user_id: Uuid,
-    #[serde(default)]
-    coordinates: Coordinates,
-    #[serde(default, skip_serializing)]
-    messages: Vec<Message>
+    username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    password_hash: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    first_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bio: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    location: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    profile_image: Option<String>, 
+    #[serde(skip_serializing_if = "Option::is_none")]
+    coordinates: Option<Coordinates>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    relationship: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Default, Clone)]
+#[derive(Deserialize)]
+struct ProfileUpdatePayload {
+    first_name: Option<String>,
+    last_name: Option<String>,
+    bio: Option<String>,
+    location: Option<String>,
+    profile_image: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
 struct Coordinates {
     lat: f64,
     lon: f64,
-    accuracy: i8
+    accuracy: i64,
 }
 
-#[derive(Serialize, Deserialize, Default, Clone)]
-struct Message {
+#[derive(Serialize, Deserialize, Clone)]
+struct ChatMessage {
+    id: i64,
     message: String,
     to_user_id: Uuid,
-    #[serde(default)]
+    from_user_id: Uuid,
     timestamp: DateTime<Utc>,
     #[serde(default)]
-    received: bool
+    received: bool,
+}
+
+#[derive(Deserialize)]
+struct PostMessagePayload {
+    message: String,
+    to_user_id: Uuid,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct WsPayload {
+    message: ChatMessage,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct Event {
+    id: String,
+    title: String,
+    category: String,
+    #[serde(rename = "locationName")]
+    location_name: String,
+    time: String,
+    lat: f64,
+    lon: f64,
 }
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
-    
-    let shared_state = AppState::default(); 
 
-    // create the router and set the handler for paths
+    // Create sqlite DB if it doesn't exist
+    let pool = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect("sqlite:gosocial.db?mode=rwc")
+        .await
+        .expect("Failed to create pool");
+
+    init_db(&pool).await;
+
+    let (tx, _rx) = broadcast::channel(100);
+
+    let shared_state = AppState { db: pool, tx };
+
     let app = Router::new()
-        .route("/v1/users", post(try_add_user))
-        .route("/v1/users/login", put(try_login))
+        .route("/v1/users", post(add_user))
+        .route("/v1/users/login", put(login_user))
         .route("/v1/users/{user_id}", delete(del_user))
-        .route("/v1/users/{user_id}/coordinates", put(try_set_location))
-        .route("/v1/users/{user_id}", get(try_get_user))
-        .route("/v1/users/nearby", get(try_get_all_users))
-        .route("/v1/messages/{user_id}", post(try_post_message))
-        .route("/v1/messages/list/{user_id}", get(try_get_messages))
+        .route("/v1/users/{user_id}/coordinates", put(set_location))
+        .route("/v1/users/{user_id}/profile", put(update_profile))
+        .route("/v1/users/{user_id}", get(get_user))
+        .route("/v1/users/nearby", get(get_nearby_users))
+        .route("/v1/messages/{user_id}", post(post_message))
+        .route("/v1/messages/list/{user_id}", get(get_messages))
+        .route("/v1/ws/chat/{user_id}", get(ws_handler))
+        .route("/v1/events", post(add_event))
+        .route("/v1/events/nearby", get(get_nearby_events))
+        .route("/v1/waves/{from_user}/{to_user}", post(send_wave))
+        .route("/v1/waves/{from_user}/{to_user}/accept", put(accept_wave))
+        .route("/v1/waves/{from_user}/{to_user}/decline", put(decline_wave))
+        .layer(DefaultBodyLimit::max(10 * 1024 * 1024))
         .with_state(shared_state)
         .layer(TraceLayer::new_for_http());
 
-    // creating the listener and binding it to all network interfaces (0.0.0.0) so it works on LAN
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8888").await.unwrap();
-
     axum::serve(listener, app).await.unwrap();
 }
 
-//***********************************************************************************************************
-// Start of Account Handling
-//***********************************************************************************************************
+async fn init_db(pool: &SqlitePool) {
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS users (
+            user_id TEXT PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            first_name TEXT,
+            last_name TEXT,
+            bio TEXT,
+            location TEXT,
+            profile_image TEXT,
+            lat REAL,
+            lon REAL,
+            accuracy INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message TEXT NOT NULL,
+            to_user_id TEXT NOT NULL,
+            from_user_id TEXT NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS events (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            category TEXT NOT NULL,
+            location_name TEXT NOT NULL,
+            time TEXT NOT NULL,
+            lat REAL NOT NULL,
+            lon REAL NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS waves (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_user_id TEXT NOT NULL,
+            to_user_id TEXT NOT NULL,
+            status TEXT DEFAULT 'pending',
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(from_user_id, to_user_id)
+        );
+        "#
+    )
+    .execute(pool)
+    .await
+    .unwrap();
 
-/// handler for the user creation 
-/// uses the Json payload to create a user
-/// if the username in the payload already exists, returns StatusCode 400 (BadRequest)
-/// else creates the user and returns the Uuid in Json
+    // Insert Echo Bot
+    let bot_id = Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+    let _ = sqlx::query("INSERT INTO users (user_id, username, password_hash, first_name, last_name, bio) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(bot_id.to_string())
+        .bind("EchoBot")
+        .bind("bot")
+        .bind("Echo")
+        .bind("Bot")
+        .bind("I reply to everything!")
+        .execute(pool).await;
+}
+
+// ----------------- USERS -----------------
+
+#[derive(Deserialize)]
+struct AuthPayload {
+    username: String,
+    password_hash: Option<String>,
+}
+
 #[axum::debug_handler]
-async fn try_add_user(State(state): State<AppState>, Json(payload): Json<User>) 
--> Result<Json<Uuid>, StatusCode> {
-    // checks if the username already exists, if it does returns StatusCode 400
-    if state.names.lock().unwrap().contains_key(&payload.username) {
-        return Err(StatusCode::BAD_REQUEST)
-    }
-
-    // generates a new Unique user id
+async fn add_user(State(state): State<AppState>, Json(payload): Json<AuthPayload>) -> Result<Json<Uuid>, StatusCode> {
     let user_id = Uuid::new_v4();
+    let res = sqlx::query("INSERT INTO users (user_id, username, password_hash) VALUES (?, ?, ?)")
+        .bind(user_id.to_string())
+        .bind(&payload.username)
+        .bind(payload.password_hash.unwrap_or_default())
+        .execute(&state.db)
+        .await;
 
-    // creates the user
-    let user = User::from(payload.username, payload.password_hash, user_id);
-
-    // inserts the username so we know it exists
-    state.names.lock().unwrap().insert(user.username.clone(), user_id);
-    // adds the user to the hashmap
-    state.users.lock().unwrap().insert(user_id, user.clone());
-
-    Ok(Json(user.user_id))
-}
-
-/// handler for the login
-/// uses the payload to check if the login is valid
-/// returns the Uuid in json if valid
-#[axum::debug_handler]
-async fn try_login(State(state): State<AppState>, Json(payload): Json<User>) 
--> Result<Json<Uuid>, StatusCode> {
-    // checks if the username exists, if it does not returns StatusCode 400
-    if !state.names.lock().unwrap().contains_key(&payload.username) {
-        return Err(StatusCode::BAD_REQUEST)
-    }
-
-    // gets the Uuid from the username, returns StatusCode 500 if fail
-    let &user_id = match state.names.lock().unwrap().get(&payload.username) {
-        Some(x) => x,
-        None => return Err(StatusCode::INTERNAL_SERVER_ERROR)
-    };
-
-    // matches the password in the payload with the saved password, 
-    // if same just continues, else responds with StatusCode 400
-    match &state.users.lock().unwrap().get(&user_id).unwrap().password_hash {
-        s if *s == payload.password_hash => {},
-        _ => return Err(StatusCode::BAD_REQUEST)
-    }
-
-    // if it gets till here its a valid login, thus returns the user_id
-    Ok(Json(user_id))
-}
-
-/// handler to delete a user
-/// path is used to get the userid
-#[axum::debug_handler]
-async fn del_user(State(state): State<AppState>, Path(path): Path<String>) -> StatusCode {
-    // parses the path into a Uuid to use, returns SatusCode 500 on fail
-    let user_id = match Uuid::parse_str(&path) {
-        Ok(id) => id,
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
-    };
-
-    let username = state.users.lock().unwrap().get(&user_id).unwrap().username.clone();
-    // removes the name from the already used names, returns StatusCode 500 on fail
-    match state.names.lock().unwrap().remove(&username) {
-        Some(_) => {},
-        None => return StatusCode::INTERNAL_SERVER_ERROR
-    }
-
-    // removes the user from the users, returns StatusCode 400 on fail
-    match state.users.lock().unwrap().remove(&user_id) {
-        Some(_) => {},
-        None => return StatusCode::BAD_REQUEST
-    }
-
-    StatusCode::OK
-}
-//***********************************************************************************************************
-// End of Account Handling
-//***********************************************************************************************************
-
-//***********************************************************************************************************
-// Start of User data requests Handling
-//***********************************************************************************************************
-
-/// handler for getting a specific user based on user_id
-/// path contains the user_id
-/// returns the user as json if successful
-#[axum::debug_handler]
-async fn try_get_user(State(state): State<AppState>, Path(path): Path<String>) 
--> Result<Json<User>, StatusCode> {
-    // parses the path into a Uuid to use, returns SatusCode 500 on fail
-    let user_id = match Uuid::parse_str(&path) {
-        Ok(id) => id,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-
-    // returns the user as json if exists, else returns StatusCode 400 on fail
-    match state.users.lock().unwrap().get(&user_id) {
-        Some(u) => return Ok(Json(u.clone())),
-        None => return Err(StatusCode::BAD_REQUEST)
+    match res {
+        Ok(_) => Ok(Json(user_id)),
+        Err(_) => Err(StatusCode::BAD_REQUEST),
     }
 }
 
-// handler which returns all the users in a json
 #[axum::debug_handler]
-async fn try_get_all_users(State(state): State<AppState>) -> Json<Vec<User>> {
-    Json(state.users.lock().unwrap().values().cloned().collect())
-}
+async fn login_user(State(state): State<AppState>, Json(payload): Json<AuthPayload>) -> Result<Json<Uuid>, StatusCode> {
+    let user = sqlx::query("SELECT user_id FROM users WHERE username = ? AND password_hash = ?")
+        .bind(&payload.username)
+        .bind(payload.password_hash.unwrap_or_default())
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-//***********************************************************************************************************
-// End of User data requests Handling
-//***********************************************************************************************************
-
-//***********************************************************************************************************
-// Start of Location Handling
-//***********************************************************************************************************
-
-// handler to set the location of the current user
-// path is used for the id of the user to update the location of
-// payload contains the location
-#[axum::debug_handler]
-async fn try_set_location(State(state): State<AppState>, 
-Path(path): Path<String>, 
-Json(payload): Json<Coordinates>) 
--> StatusCode {
-
-    // parses the path into a Uuid to use, returns SatusCode 500 on fail
-    let user_id = match Uuid::parse_str(&path) {
-        Ok(id) => id,
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
-    };
-
-    // gets the user assositate with the user_id sent in the path, and sets the new Coordiantes 
-    // returns StatusCode 400 if it fails
-    match state.users.lock().unwrap().get_mut(&user_id) {
-        Some(x) => x.coordinates = Coordinates { 
-            lat: payload.lat, 
-            lon: payload.lon, 
-            accuracy: payload.accuracy },
-        None => return StatusCode::BAD_REQUEST
-    };
-
-    // returns 200
-    StatusCode::OK
-}
-
-//***********************************************************************************************************
-// End of Location Handling
-//***********************************************************************************************************
-
-//***********************************************************************************************************
-// Start of Message Handling
-//***********************************************************************************************************
-
-/// handler to add a messege to the list of messages TODO: auth
-#[axum::debug_handler]
-async fn try_post_message(State(state): State<AppState>, 
-Path(path): Path<String>, 
-Json(payload): Json<Message>) 
--> StatusCode {
-    // parses the path into a Uuid to use, returns SatusCode 500 on fail
-    let user_id = match Uuid::parse_str(&path) {
-        Ok(id) => id,
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
-    };
-
-    // checks if the target user exists, if it does not returns StatusCode 400
-    if !state.users.lock().unwrap().contains_key(&payload.to_user_id) {
-        return StatusCode::BAD_REQUEST
-    }
-
-    // gets the user assositate with the user_id sent in the path, and adds the message 
-    // returns StatusCode 400 if it fails
-    match state.users.lock().unwrap().get_mut(&user_id) {
-        Some(x) => x.messages.push(Message { 
-            message: payload.message.clone(), 
-            to_user_id: payload.to_user_id, 
-            timestamp: chrono::offset::Utc::now(),
-            received: false }),
-        None => return StatusCode::BAD_REQUEST
-    };
-
-    // gets the user assositate with the to_user_id sent in the payload, and adds the message 
-    // returns StatusCode 400 if it fails
-    match state.users.lock().unwrap().get_mut(&payload.to_user_id) {
-        Some(x) => x.messages.push(Message { 
-            message: payload.message, 
-            to_user_id: user_id, 
-            timestamp: chrono::offset::Utc::now(),
-            received: true }),
-        None => return StatusCode::BAD_REQUEST
-    };
-
-    StatusCode::OK
-}
-
-/// handler to get all the messages of a certain user TODO: auth
-#[axum::debug_handler]
-async fn try_get_messages(State(state): State<AppState>, Path(path): Path<String>) 
--> Result<Json<Vec<Message>>, StatusCode> {
-    // parses the path into a Uuid to use, returns SatusCode 500 on fail
-    let user_id = match Uuid::parse_str(&path) {
-        Ok(id) => id,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-
-    // get the user and respond with messegas if successful, or StatusCode 400 if not
-    match state.users.lock().unwrap().get(&user_id) {
-        Some(u) => return Ok(Json(u.messages.iter().cloned().collect())),
-        None => return Err(StatusCode::BAD_REQUEST)
+    match user {
+        Some(row) => {
+            let id: String = row.get("user_id");
+            Ok(Json(Uuid::parse_str(&id).unwrap()))
+        }
+        None => Err(StatusCode::BAD_REQUEST),
     }
 }
 
-//***********************************************************************************************************
-// End of Message Handling
-//***********************************************************************************************************
+#[axum::debug_handler]
+async fn del_user(State(state): State<AppState>, Path(user_id): Path<Uuid>) -> StatusCode {
+    let res = sqlx::query("DELETE FROM users WHERE user_id = ?")
+        .bind(user_id.to_string())
+        .execute(&state.db)
+        .await;
+    if res.is_ok() { StatusCode::OK } else { StatusCode::BAD_REQUEST }
+}
 
-impl User {
-    fn from(username: String, password_hash: String, user_id: Uuid) -> Self {
-        Self {
-            username,
-            password_hash,
-            user_id,
-            coordinates: Coordinates::default(),
-            messages: Vec::new()
+#[axum::debug_handler]
+async fn set_location(State(state): State<AppState>, Path(user_id): Path<Uuid>, Json(coords): Json<Coordinates>) -> StatusCode {
+    let res = sqlx::query("UPDATE users SET lat = ?, lon = ?, accuracy = ? WHERE user_id = ?")
+        .bind(coords.lat)
+        .bind(coords.lon)
+        .bind(coords.accuracy)
+        .bind(user_id.to_string())
+        .execute(&state.db)
+        .await;
+    if res.is_ok() { StatusCode::OK } else { StatusCode::BAD_REQUEST }
+}
+
+#[axum::debug_handler]
+async fn update_profile(State(state): State<AppState>, Path(user_id): Path<Uuid>, Json(payload): Json<ProfileUpdatePayload>) -> StatusCode {
+    let res = sqlx::query(
+        "UPDATE users SET first_name = ?, last_name = ?, bio = ?, location = ?, profile_image = ? WHERE user_id = ?"
+    )
+    .bind(payload.first_name)
+    .bind(payload.last_name)
+    .bind(payload.bio)
+    .bind(payload.location)
+    .bind(payload.profile_image)
+    .bind(user_id.to_string())
+    .execute(&state.db)
+    .await;
+    if res.is_ok() { StatusCode::OK } else { StatusCode::BAD_REQUEST }
+}
+
+#[axum::debug_handler]
+async fn get_user(State(state): State<AppState>, Path(user_id): Path<Uuid>) -> Result<Json<User>, StatusCode> {
+    let row = sqlx::query("SELECT * FROM users WHERE user_id = ?")
+        .bind(user_id.to_string())
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if let Some(r) = row {
+        Ok(Json(row_to_user(r)))
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
+#[axum::debug_handler]
+async fn get_nearby_users(
+    State(state): State<AppState>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<Vec<User>>, StatusCode> {
+    let current_user_id = params.get("user_id").cloned();
+
+    let rows = sqlx::query("SELECT * FROM users")
+        .fetch_all(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut users = Vec::new();
+    for r in rows {
+        let mut u = row_to_user(r);
+        u.relationship = Some("none".to_string());
+
+        if let Some(ref cu_id) = current_user_id {
+            if u.user_id.to_string() == *cu_id {
+                continue; // skip self
+            }
+
+            let w1 = sqlx::query("SELECT status FROM waves WHERE from_user_id = ? AND to_user_id = ?")
+                .bind(cu_id)
+                .bind(u.user_id.to_string())
+                .fetch_optional(&state.db)
+                .await.unwrap_or(None);
+
+            let w2 = sqlx::query("SELECT status FROM waves WHERE from_user_id = ? AND to_user_id = ?")
+                .bind(u.user_id.to_string())
+                .bind(cu_id)
+                .fetch_optional(&state.db)
+                .await.unwrap_or(None);
+
+            let s1: Option<String> = w1.map(|row| row.get("status"));
+            let s2: Option<String> = w2.map(|row| row.get("status"));
+
+            if s1.as_deref() == Some("accepted") || s2.as_deref() == Some("accepted") {
+                u.relationship = Some("accepted".to_string());
+            } else if s1.as_deref() == Some("pending") {
+                u.relationship = Some("sent".to_string());
+            } else if s2.as_deref() == Some("pending") {
+                u.relationship = Some("received".to_string());
+            }
+        }
+
+        if u.relationship.as_deref() != Some("accepted") && u.user_id.to_string() != "00000000-0000-0000-0000-000000000000" {
+            u.profile_image = None; // mask profile pic for anons
+            // keep username so the backend has a way to identify them internally or display 'Anonymous', 
+            // but the frontend can choose to mask it in UI
+        }
+
+        users.push(u);
+    }
+    Ok(Json(users))
+}
+
+fn row_to_user(row: sqlx::sqlite::SqliteRow) -> User {
+    let id_str: String = row.get("user_id");
+    let lat: Option<f64> = row.get("lat");
+    let lon: Option<f64> = row.get("lon");
+    let accuracy: Option<i64> = row.get("accuracy");
+
+    let coords = if let (Some(la), Some(lo)) = (lat, lon) {
+        Some(Coordinates { lat: la, lon: lo, accuracy: accuracy.unwrap_or(0) })
+    } else {
+        None
+    };
+
+    User {
+        user_id: Uuid::parse_str(&id_str).unwrap(),
+        username: row.get("username"),
+        password_hash: None,
+        first_name: row.get("first_name"),
+        last_name: row.get("last_name"),
+        bio: row.get("bio"),
+        location: row.get("location"),
+        profile_image: row.get("profile_image"),
+        coordinates: coords,
+        relationship: None,
+    }
+}
+
+// ----------------- WAVES -----------------
+
+#[axum::debug_handler]
+async fn send_wave(State(state): State<AppState>, Path((from_user, to_user)): Path<(Uuid, Uuid)>) -> StatusCode {
+    let res = sqlx::query("INSERT INTO waves (from_user_id, to_user_id, status) VALUES (?, ?, 'pending') ON CONFLICT(from_user_id, to_user_id) DO UPDATE SET status = 'pending'")
+        .bind(from_user.to_string())
+        .bind(to_user.to_string())
+        .execute(&state.db)
+        .await;
+
+    if res.is_ok() { StatusCode::OK } else { StatusCode::BAD_REQUEST }
+}
+
+#[axum::debug_handler]
+async fn accept_wave(State(state): State<AppState>, Path((from_user, to_user)): Path<(Uuid, Uuid)>) -> StatusCode {
+    let res = sqlx::query("UPDATE waves SET status = 'accepted' WHERE from_user_id = ? AND to_user_id = ?")
+        .bind(from_user.to_string())
+        .bind(to_user.to_string())
+        .execute(&state.db)
+        .await;
+
+    // Create mutual relationship
+    let _ = sqlx::query("INSERT INTO waves (from_user_id, to_user_id, status) VALUES (?, ?, 'accepted') ON CONFLICT(from_user_id, to_user_id) DO UPDATE SET status = 'accepted'")
+        .bind(to_user.to_string())
+        .bind(from_user.to_string())
+        .execute(&state.db)
+        .await;
+
+    if res.is_ok() { StatusCode::OK } else { StatusCode::BAD_REQUEST }
+}
+
+#[axum::debug_handler]
+async fn decline_wave(State(state): State<AppState>, Path((from_user, to_user)): Path<(Uuid, Uuid)>) -> StatusCode {
+    let res = sqlx::query("UPDATE waves SET status = 'rejected' WHERE from_user_id = ? AND to_user_id = ?")
+        .bind(from_user.to_string())
+        .bind(to_user.to_string())
+        .execute(&state.db)
+        .await;
+
+    if res.is_ok() { StatusCode::OK } else { StatusCode::BAD_REQUEST }
+}
+
+// ----------------- MESSAGES -----------------
+
+#[axum::debug_handler]
+async fn post_message(
+    State(state): State<AppState>,
+    Path(from_user_id): Path<Uuid>,
+    Json(payload): Json<PostMessagePayload>,
+) -> StatusCode {
+    let ts = Utc::now();
+    let res = sqlx::query("INSERT INTO messages (message, to_user_id, from_user_id, timestamp) VALUES (?, ?, ?, ?)")
+        .bind(&payload.message)
+        .bind(payload.to_user_id.to_string())
+        .bind(from_user_id.to_string())
+        .bind(ts)
+        .execute(&state.db)
+        .await;
+
+    if res.is_err() {
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
+
+    let msg = ChatMessage {
+        id: 0,
+        message: payload.message.clone(),
+        to_user_id: payload.to_user_id,
+        from_user_id,
+        timestamp: ts,
+        received: true,
+    };
+
+    // Broadcast to websockets
+    if let Ok(json) = serde_json::to_string(&WsPayload { message: msg.clone() }) {
+        let _ = state.tx.send(json);
+    }
+
+    // Echo Bot auto-reply
+    let bot_id = Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+    if payload.to_user_id == bot_id {
+        let reply_ts = Utc::now();
+        let reply_msg = format!("Echo: {}", payload.message);
+        let _ = sqlx::query("INSERT INTO messages (message, to_user_id, from_user_id, timestamp) VALUES (?, ?, ?, ?)")
+            .bind(&reply_msg)
+            .bind(from_user_id.to_string())
+            .bind(bot_id.to_string())
+            .bind(reply_ts)
+            .execute(&state.db)
+            .await;
+
+        let bmsg = ChatMessage {
+            id: 0,
+            message: reply_msg,
+            to_user_id: from_user_id,
+            from_user_id: bot_id,
+            timestamp: reply_ts,
+            received: true,
+        };
+        if let Ok(json) = serde_json::to_string(&WsPayload { message: bmsg }) {
+            let _ = state.tx.send(json);
         }
     }
+
+    StatusCode::OK
+}
+
+#[axum::debug_handler]
+async fn get_messages(State(state): State<AppState>, Path(user_id): Path<Uuid>) -> Result<Json<Vec<ChatMessage>>, StatusCode> {
+    let rows = sqlx::query("SELECT * FROM messages WHERE to_user_id = ? OR from_user_id = ? ORDER BY timestamp ASC")
+        .bind(user_id.to_string())
+        .bind(user_id.to_string())
+        .fetch_all(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut msgs = Vec::new();
+    for r in rows {
+        let id: i64 = r.get("id");
+        let msg: String = r.get("message");
+        let to_id_str: String = r.get("to_user_id");
+        let from_id_str: String = r.get("from_user_id");
+        let ts: DateTime<Utc> = r.get("timestamp");
+
+        let to_u = Uuid::parse_str(&to_id_str).unwrap();
+        let from_u = Uuid::parse_str(&from_id_str).unwrap();
+
+        let (other_id, received) = if to_u == user_id {
+            (from_u, true)
+        } else {
+            (to_u, false)
+        };
+
+        msgs.push(ChatMessage {
+            id,
+            message: msg,
+            to_user_id: other_id, 
+            from_user_id: from_u,
+            timestamp: ts,
+            received,
+        });
+    }
+    Ok(Json(msgs))
+}
+
+// ----------------- WEBSOCKET -----------------
+
+async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>, Path(user_id): Path<Uuid>) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_socket(socket, state, user_id))
+}
+
+async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid) {
+    let (mut sender, mut receiver) = socket.split();
+    let mut rx = state.tx.subscribe();
+
+    let mut send_task = tokio::spawn(async move {
+        while let Ok(msg) = rx.recv().await {
+            if let Ok(payload) = serde_json::from_str::<WsPayload>(&msg) {
+                if payload.message.to_user_id == user_id || payload.message.from_user_id == user_id {
+                    let _ = sender.send(WsMessage::Text(msg.clone().into())).await;
+                }
+            }
+        }
+    });
+
+    let mut recv_task = tokio::spawn(async move {
+        while let Some(Ok(msg)) = receiver.next().await {
+            // Ignore incoming messages, rely on POST /v1/messages
+        }
+    });
+
+    tokio::select! {
+        _ = (&mut send_task) => recv_task.abort(),
+        _ = (&mut recv_task) => send_task.abort(),
+    };
+}
+
+// ----------------- EVENTS -----------------
+
+#[axum::debug_handler]
+async fn add_event(State(state): State<AppState>, Json(payload): Json<Event>) -> StatusCode {
+    let res = sqlx::query("INSERT INTO events (id, title, category, location_name, time, lat, lon) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .bind(payload.id)
+        .bind(payload.title)
+        .bind(payload.category)
+        .bind(payload.location_name)
+        .bind(payload.time)
+        .bind(payload.lat)
+        .bind(payload.lon)
+        .execute(&state.db)
+        .await;
+
+    if res.is_ok() { StatusCode::OK } else { StatusCode::BAD_REQUEST }
+}
+
+#[axum::debug_handler]
+async fn get_nearby_events(State(state): State<AppState>) -> Result<Json<Vec<Event>>, StatusCode> {
+    let rows = sqlx::query("SELECT * FROM events")
+        .fetch_all(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut events = Vec::new();
+    for r in rows {
+        events.push(Event {
+            id: r.get("id"),
+            title: r.get("title"),
+            category: r.get("category"),
+            location_name: r.get("location_name"),
+            time: r.get("time"),
+            lat: r.get("lat"),
+            lon: r.get("lon"),
+        });
+    }
+    Ok(Json(events))
 }

@@ -11,27 +11,112 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  BackHandler,
 } from "react-native";
 
 
 
 import { useAuth } from "../context/AuthContext";
 import { getMessages, sendMessage as sendBackendMessage } from "../api/messages";
-import { getNearbyUsers } from "../api/users";
+import { getNearbyUsers, acceptWave, declineWave } from "../api/users";
+import { WS_BASE_URL } from "../api/config";
 
 export default function ChatScreen() {
   const { userId } = useAuth();
-  const [selectedChat, setSelectedChat] = useState(null);
+  const [selectedChatId, setSelectedChatId] = useState(null);
+  const selectedChatIdRef = React.useRef(selectedChatId);
   const [searchText, setSearchText] = useState("");
   const [messageText, setMessageText] = useState("");
   const [chatData, setChatData] = useState([]);
+  const [ws, setWs] = useState(null);
+
+  const selectedChat = chatData.find((c) => c.id === selectedChatId) || null;
+
+  useEffect(() => {
+    selectedChatIdRef.current = selectedChatId;
+    
+    // Handle Android back button
+    const onBackPress = () => {
+      if (selectedChatIdRef.current) {
+        setSelectedChatId(null);
+        return true; // prevent default behavior (exit app)
+      }
+      return false; // let default behavior happen
+    };
+
+    const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => subscription.remove();
+  }, [selectedChatId]);
 
   useEffect(() => {
     if (!userId) return;
-    let interval;
+
+    const newWs = new WebSocket(`${WS_BASE_URL}/v1/ws/chat/${userId}`);
+    newWs.onopen = () => {
+      console.log("WebSocket connected");
+    };
+    newWs.onmessage = (e) => {
+      try {
+        const payload = JSON.parse(e.data);
+        const m = payload.message;
+        
+        setChatData(prevData => {
+          const newData = [...prevData];
+          // Determine the other user in the chat
+          const otherId = m.to_user_id === userId ? m.from_user_id : m.to_user_id;
+          
+          let chatIndex = newData.findIndex(c => c.id === otherId);
+          if (chatIndex === -1) {
+            newData.push({
+              id: otherId,
+              name: "Unknown",
+              avatar: null,
+              lastMessage: m.message,
+              time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              unread: m.to_user_id === userId ? 1 : 0,
+              online: true,
+              messages: [],
+            });
+            chatIndex = newData.length - 1;
+          }
+
+          const chat = { ...newData[chatIndex] };
+          
+          // Check if message already exists
+          if (!chat.messages.some(existing => existing.id === m.id || existing.text === m.message && existing.fromMe)) {
+             chat.messages = [...chat.messages, {
+               id: m.id || m.timestamp + Math.random().toString(),
+               text: m.message,
+               time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+               fromMe: m.from_user_id === userId,
+               timestamp: new Date(m.timestamp).getTime()
+             }];
+             chat.lastMessage = m.message;
+             chat.time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+             
+             if (m.to_user_id === userId && selectedChatIdRef.current !== otherId) {
+               chat.unread += 1;
+             }
+          }
+          
+          newData[chatIndex] = chat;
+          return newData;
+        });
+
+      } catch (err) {
+        console.log("Error parsing websocket message", err);
+      }
+    };
+    
+    newWs.onerror = (e) => {
+      console.log("WebSocket error", e.message);
+    };
+    
+    setWs(newWs);
+
     const fetchData = async () => {
       try {
-        const users = await getNearbyUsers();
+        const users = await getNearbyUsers(userId);
         const msgList = await getMessages(userId);
 
         const uMap = {};
@@ -39,18 +124,19 @@ export default function ChatScreen() {
 
         const groups = {};
 
-        // Ensure every nearby user is in the list, even if no messages yet
+        // Only add users who have a mutual or pending relationship
         users.forEach(u => {
-          if (u.user_id !== userId) {
+          if (u.user_id !== userId && (u.relationship === "accepted" || u.relationship === "received" || u.relationship === "sent")) {
             groups[u.user_id] = {
               id: u.user_id,
-              name: u.username || "Unknown",
-              avatar: null,
-              lastMessage: "Start a conversation",
+              name: u.relationship === "accepted" ? (u.username || "Unknown") : "Anonymous User",
+              avatar: u.profile_image || null,
+              lastMessage: u.relationship === "received" ? "Waved at you!" : u.relationship === "sent" ? "Wave sent" : "Start a conversation",
               time: "",
-              unread: 0,
+              unread: u.relationship === "received" ? 1 : 0,
               online: true,
               messages: [],
+              relationship: u.relationship,
             };
           }
         });
@@ -71,7 +157,7 @@ export default function ChatScreen() {
             };
           }
           groups[otherId].messages.push({
-            id: m.timestamp + Math.random().toString(),
+            id: m.id || m.timestamp + Math.random().toString(),
             text: m.message,
             time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             fromMe: !m.received,
@@ -86,15 +172,7 @@ export default function ChatScreen() {
           g.messages.sort((a, b) => a.timestamp - b.timestamp);
         });
 
-        // Only update local state if we aren't actively typing a message to prevent flicker, 
-        // or we could be smarter, but for MVP simple setChatData is fine.
         setChatData(Object.values(groups));
-
-        // Also update selectedChat if it's open
-        setSelectedChat(prev => {
-          if (prev) return groups[prev.id] || prev;
-          return prev;
-        });
 
       } catch (e) {
         console.log("Error fetching chats", e);
@@ -102,8 +180,10 @@ export default function ChatScreen() {
     };
 
     fetchData();
-    interval = setInterval(fetchData, 3000); // refresh every 3 seconds for mvp real-time feel
-    return () => clearInterval(interval);
+
+    return () => {
+      newWs.close();
+    };
   }, [userId]);
 
   const filteredChats = chatData.filter((chat) =>
@@ -111,46 +191,70 @@ export default function ChatScreen() {
   );
 
   function openChat(chat) {
-    setSelectedChat(chat);
+    setSelectedChatId(chat.id);
+    
+    // Clear unread
+    setChatData(prev => {
+       const newData = [...prev];
+       const chatIndex = newData.findIndex(c => c.id === chat.id);
+       if (chatIndex !== -1) {
+          newData[chatIndex] = { ...newData[chatIndex], unread: 0 };
+       }
+       return newData;
+    });
   }
 
   function closeChat() {
-    setSelectedChat(null);
+    setSelectedChatId(null);
   }
 
   const sendMessage = async () => {
     if (!messageText.trim() || !selectedChat) return;
 
+    const currentMessage = messageText;
+    setMessageText("");
+
+    const newMessage = {
+      id: Date.now().toString(),
+      text: currentMessage,
+      time: "Now",
+      fromMe: true,
+      timestamp: Date.now()
+    };
+
+    // Optimistic update BEFORE await
+    setChatData(prevChats => prevChats.map((chat) => {
+      if (chat.id === selectedChatId) {
+        return {
+          ...chat,
+          messages: [...chat.messages, newMessage],
+          lastMessage: currentMessage,
+          time: "Now",
+        };
+      }
+      return chat;
+    }));
+
     try {
-      await sendBackendMessage(userId, { message: messageText, toUserId: selectedChat.id });
-
-      const newMessage = {
-        id: Date.now().toString(),
-        text: messageText,
-        time: "Now",
-        fromMe: true,
-        timestamp: Date.now()
-      };
-
-      const updatedChats = chatData.map((chat) => {
-        if (chat.id === selectedChat.id) {
-          const updatedChat = {
-            ...chat,
-            messages: [...chat.messages, newMessage],
-            lastMessage: messageText,
-            time: "Now",
-          };
-          setSelectedChat(updatedChat);
-          return updatedChat;
-        }
-        return chat;
-      });
-
-      setChatData(updatedChats);
-      setMessageText("");
+      await sendBackendMessage(userId, { message: currentMessage, toUserId: selectedChatId });
     } catch (e) {
       console.log("Error sending msg", e);
     }
+  };
+
+  const handleAcceptWave = async (chatId) => {
+    try {
+      await acceptWave(userId, chatId);
+      setChatData(prev => prev.map(c => c.id === chatId ? { ...c, relationship: "accepted", lastMessage: "Wave accepted! Say hi." } : c));
+    } catch(e) { console.log(e); }
+  };
+
+  const handleDeclineWave = async (chatId) => {
+    try {
+      await declineWave(userId, chatId);
+      setChatData(prev => prev.filter(c => c.id !== chatId));
+      setSelectedChatId(null);
+    } catch(e) { console.log(e); }
   };
 
   if (selectedChat) {
@@ -161,6 +265,8 @@ export default function ChatScreen() {
         messageText={messageText}
         setMessageText={setMessageText}
         onSend={sendMessage}
+        onAcceptWave={() => handleAcceptWave(selectedChat.id)}
+        onDeclineWave={() => handleDeclineWave(selectedChat.id)}
       />
     );
   }
@@ -246,6 +352,8 @@ function ChatDetailScreen({
   messageText,
   setMessageText,
   onSend,
+  onAcceptWave,
+  onDeclineWave,
 }) {
   return (
     <SafeAreaView style={styles.detailContainer}>
@@ -319,23 +427,38 @@ function ChatDetailScreen({
           ))}
         </ScrollView>
 
-        <View style={styles.inputBar}>
-          <TouchableOpacity style={styles.emojiButton}>
-            <Text style={styles.emojiText}>☺</Text>
-          </TouchableOpacity>
+        {chat.relationship === "received" ? (
+          <View style={styles.waveActions}>
+            <TouchableOpacity style={[styles.waveBtn, styles.declineBtn]} onPress={onDeclineWave}>
+               <Text style={styles.waveBtnText}>Decline</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.waveBtn, styles.acceptBtn]} onPress={onAcceptWave}>
+               <Text style={styles.waveBtnText}>Wave Back</Text>
+            </TouchableOpacity>
+          </View>
+        ) : chat.relationship === "sent" ? (
+          <View style={styles.wavePending}>
+            <Text style={styles.wavePendingText}>Waiting for them to wave back...</Text>
+          </View>
+        ) : (
+          <View style={styles.inputBar}>
+            <TouchableOpacity style={styles.emojiButton}>
+              <Text style={styles.emojiText}>☺</Text>
+            </TouchableOpacity>
 
-          <TextInput
-            style={styles.messageInput}
-            placeholder="Message"
-            placeholderTextColor="#8C8C8C"
-            value={messageText}
-            onChangeText={setMessageText}
-          />
+            <TextInput
+              style={styles.messageInput}
+              placeholder="Message"
+              placeholderTextColor="#8C8C8C"
+              value={messageText}
+              onChangeText={setMessageText}
+            />
 
-          <TouchableOpacity style={styles.sendButton} onPress={onSend}>
-            <Text style={styles.sendText}>➤</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity style={styles.sendButton} onPress={onSend}>
+              <Text style={styles.sendText}>➤</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -694,5 +817,44 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 20,
     marginLeft: 2,
+  },
+
+  waveActions: {
+    flexDirection: "row",
+    padding: 16,
+    gap: 12,
+    backgroundColor: "#1F1F1F",
+  },
+
+  waveBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 24,
+    alignItems: "center",
+  },
+
+  acceptBtn: {
+    backgroundColor: "#FF2E93",
+  },
+
+  declineBtn: {
+    backgroundColor: "#2A2A2A",
+  },
+
+  waveBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+
+  wavePending: {
+    padding: 20,
+    alignItems: "center",
+    backgroundColor: "#1F1F1F",
+  },
+
+  wavePendingText: {
+    color: "#8C8C8C",
+    fontSize: 15,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,12 +8,12 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
-import eventsData from "../data/events.json";
+import { getNearbyEvents } from "../api/events";
 import EventSummaryScreen from "./EventSummaryScreen";
 import { getCategoryStyle } from "../utils/categoryStyles";
 
-// One representative photo per event, keyed by event id
 const EVENT_IMAGES = {
   party1: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&h=600&fit=crop",
   party2: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=600&fit=crop",
@@ -30,11 +30,6 @@ const EVENT_IMAGES = {
   yellow2: "https://images.unsplash.com/photo-1543269865-cbf427effbad?w=800&h=600&fit=crop",
   yellow3: "https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=800&h=600&fit=crop",
 };
-
-const EVENTS = eventsData.map((event) => ({
-  ...event,
-  imageUrl: EVENT_IMAGES[event.id],
-}));
 
 function EventImage({ event, style, fallbackTextStyle, failed, onError }) {
   const categoryStyle = getCategoryStyle(event.category);
@@ -54,18 +49,40 @@ export default function DiscoverEventScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [failedImages, setFailedImages] = useState({});
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const featuredEvents = EVENTS.filter((event) => event.time.startsWith("Tonight"));
+  useEffect(() => {
+    async function loadEvents() {
+      try {
+        const backendEvents = await getNearbyEvents();
+        const formatted = backendEvents.map(e => ({
+          ...e,
+          locationName: e.locationName || e.location_name,
+          imageUrl: EVENT_IMAGES[e.id] || null,
+        }));
+        setEvents(formatted);
+      } catch (err) {
+        console.error("Failed to fetch events", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadEvents();
+  }, []);
+
+  const featuredEvents = events.filter((event) => event.time.startsWith("Tonight") || event.time.toLowerCase().includes("tonight"));
 
   const query = searchQuery.trim().toLowerCase();
-  const filteredEvents = EVENTS.filter((event) => {
+  const filteredEvents = events.filter((event) => {
     if (!query) return true;
     return (
       event.category.toLowerCase().includes(query) ||
       event.title.toLowerCase().includes(query) ||
-      event.locationName.toLowerCase().includes(query)
+      (event.locationName || "").toLowerCase().includes(query)
     );
   });
+
 
   const markImageFailed = (id) => {
     setFailedImages((prev) => ({ ...prev, [id]: true }));

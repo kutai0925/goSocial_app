@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,8 +8,11 @@ import {
   ScrollView,
   Dimensions,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import EditProfileScreen from "./EditProfileScreen";
+import { getUser, updateProfile } from "../api/users";
+import { useAuth } from "../context/AuthContext";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_GAP = 2;
@@ -29,15 +32,56 @@ const GRID_PHOTOS = [
 ];
 
 const DEFAULT_PROFILE = {
-  firstName: "David",
-  lastName: "Bruno",
-  location: "San Francisco, CA",
-  bio: "Rhoncus ipsum eget tempus. Praesent fermentum sa rhoncus.",
+  firstName: "",
+  lastName: "",
+  location: "Unknown",
+  bio: "No bio yet.",
+  profileImage: null,
 };
 
 export default function ProfileScreen({ onClose }) {
+  const { userId } = useAuth();
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        const data = await getUser(userId);
+        setProfile({
+          firstName: data.first_name || data.username,
+          lastName: data.last_name || "",
+          location: data.location || "Unknown",
+          bio: data.bio || "No bio yet.",
+          profileImage: data.profile_image || null,
+        });
+      } catch (err) {
+        console.error("Failed to load profile", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadProfile();
+  }, [userId]);
+
+  const handleSaveProfile = async (updated) => {
+    try {
+      await updateProfile(userId, updated);
+      setProfile(updated);
+      setShowEditProfile(false);
+    } catch (err) {
+      console.error("Failed to update profile", err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color="#FFFFFF" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -51,7 +95,11 @@ export default function ProfileScreen({ onClose }) {
 
           <View style={styles.profileRow}>
             <Image
-              source={require("../../assets/images/radar_avatar.png")}
+              source={
+                profile.profileImage
+                  ? { uri: profile.profileImage }
+                  : require("../../assets/images/radar_avatar.png")
+              }
               style={styles.avatar}
             />
 
@@ -101,10 +149,7 @@ export default function ProfileScreen({ onClose }) {
         <EditProfileScreen
           profile={profile}
           onCancel={() => setShowEditProfile(false)}
-          onSave={(updated) => {
-            setProfile(updated);
-            setShowEditProfile(false);
-          }}
+          onSave={handleSaveProfile}
         />
       )}
     </View>
