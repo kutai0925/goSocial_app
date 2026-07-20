@@ -16,7 +16,7 @@ import { isValidUsername, isValidEmail, isValidPassword } from "../utils/validat
 
 import { useAuth } from "../context/AuthContext";
 
-export default function SignUpScreen({ onBackToLogin }) {
+export default function SignUpScreen({ navigation }) {
   const { signupUser } = useAuth();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -73,7 +73,7 @@ export default function SignUpScreen({ onBackToLogin }) {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <TouchableOpacity style={styles.backButton} onPress={onBackToLogin}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Text style={styles.backButtonLabel}>{"‹ Back"}</Text>
           </TouchableOpacity>
 

@@ -71,14 +71,15 @@ export default function EditProfileScreen({ profile, onCancel, onSave }) {
               </TouchableOpacity>
             </View>
 
-            <Image
-              source={
-                profileImage
-                  ? { uri: profileImage }
-                  : require("../../assets/images/radar_avatar.png")
-              }
-              style={styles.avatar}
-            />
+            {profileImage ? (
+              <Image source={{ uri: profileImage }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: "#8F4CC7", alignItems: "center", justifyContent: "center" }]}>
+                <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 40 }}>
+                  {firstName ? firstName.charAt(0).toUpperCase() : "?"}
+                </Text>
+              </View>
+            )}
             <TouchableOpacity onPress={pickImage}>
               <Text style={styles.changePhotoText}>Change Photo</Text>
             </TouchableOpacity>

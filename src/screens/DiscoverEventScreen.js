@@ -10,9 +10,11 @@ import {
   StatusBar,
   ActivityIndicator,
 } from "react-native";
-import { getNearbyEvents } from "../api/events";
+import eventsData from "../data/events.json";
 import EventSummaryScreen from "./EventSummaryScreen";
 import { getCategoryStyle } from "../utils/categoryStyles";
+import { useAuth } from "../context/AuthContext";
+import { getUser } from "../api/users";
 
 const EVENT_IMAGES = {
   party1: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&h=600&fit=crop",
@@ -52,11 +54,26 @@ export default function DiscoverEventScreen() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const { userId } = useAuth();
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    async function loadUser() {
+      if (!userId) return;
+      try {
+        const user = await getUser(userId);
+        setCurrentUser(user);
+      } catch (err) {
+        console.error("Failed to fetch user in discover", err);
+      }
+    }
+    loadUser();
+  }, [userId]);
+
   useEffect(() => {
     async function loadEvents() {
       try {
-        const backendEvents = await getNearbyEvents();
-        const formatted = backendEvents.map(e => ({
+        const formatted = eventsData.map(e => ({
           ...e,
           locationName: e.locationName || e.location_name,
           imageUrl: EVENT_IMAGES[e.id] || null,
@@ -98,10 +115,15 @@ export default function DiscoverEventScreen() {
             <Text style={styles.headerTitle}>Discover</Text>
             <View style={styles.headerDot} />
           </View>
-          <Image
-            source={require("../../assets/images/radar_avatar.png")}
-            style={styles.headerAvatar}
-          />
+          {currentUser && currentUser.profile_image ? (
+            <Image source={{ uri: currentUser.profile_image }} style={styles.headerAvatar} />
+          ) : (
+            <View style={[styles.headerAvatar, { backgroundColor: "#8F4CC7", alignItems: "center", justifyContent: "center" }]}>
+              <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 18 }}>
+                {currentUser && currentUser.first_name ? currentUser.first_name.charAt(0).toUpperCase() : "?"}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.searchContainer}>

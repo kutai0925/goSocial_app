@@ -16,11 +16,20 @@ import { LinearGradient } from "expo-linear-gradient";
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import eventsData from "../data/events.json";
 import { useAuth } from "../context/AuthContext";
 import { setLocation as setBackendLocation, getNearbyUsers } from "../api/users";
-import { getNearbyEvents } from "../api/events";
 
 const CACHE_KEY = "user_cached_location";
+
+// Place the dummy events around the user location using each event's stored offset
+const generateNearbyMarkers = (lat, lon) => {
+  return eventsData.map((event) => ({
+    ...event,
+    latitude: lat + event.latOffset,
+    longitude: lon + event.lonOffset,
+  }));
+};
 
 export default function MapScreen() {
   const { userId } = useAuth();
@@ -48,27 +57,13 @@ export default function MapScreen() {
     let locationSubscription = null;
     let nearbyInterval = null;
 
-    const fetchEventsAndUsers = async () => {
+    const fetchNearbyUsers = async () => {
+      if (!userId) return;
       try {
-        const events = await getNearbyEvents();
-        const mappedEvents = events.map(e => ({
-          ...e,
-          latitude: e.lat,
-          longitude: e.lon,
-          type: e.category.toLowerCase()
-        }));
-        setNearbyMarkers(mappedEvents);
-      } catch (err) {
-        console.log("Error fetching events", err);
-      }
-
-      if (userId) {
-        try {
-          const users = await getNearbyUsers();
-          setRealUsers(users.filter(u => u.user_id !== userId));
-        } catch (e) {
-          console.log("Error fetching nearby users", e);
-        }
+        const users = await getNearbyUsers();
+        setRealUsers(users.filter(u => u.user_id !== userId));
+      } catch (e) {
+        console.log("Error fetching nearby users", e);
       }
     };
 
@@ -96,6 +91,7 @@ export default function MapScreen() {
               latitudeDelta: 0.015,
               longitudeDelta: 0.015,
             });
+            setNearbyMarkers(generateNearbyMarkers(latitude, longitude));
             setLoading(false);
 
             await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ latitude, longitude }));
@@ -118,8 +114,8 @@ export default function MapScreen() {
 
     loadCachedLocation();
     setupLocationTracking();
-    fetchEventsAndUsers();
-    nearbyInterval = setInterval(fetchEventsAndUsers, 10000);
+    fetchNearbyUsers();
+    nearbyInterval = setInterval(fetchNearbyUsers, 10000);
 
     return () => {
       if (locationSubscription) locationSubscription.remove();
@@ -140,7 +136,8 @@ export default function MapScreen() {
         };
         setLocation({ latitude, longitude });
         setRegion(cachedRegion);
-        setLoading(false); 
+        setNearbyMarkers(generateNearbyMarkers(latitude, longitude));
+        setLoading(false);
       }
     } catch (err) {
       console.log("Error reading cached location:", err);

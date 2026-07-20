@@ -372,6 +372,34 @@ fn row_to_user(row: sqlx::sqlite::SqliteRow) -> User {
 
 #[axum::debug_handler]
 async fn send_wave(State(state): State<AppState>, Path((from_user, to_user)): Path<(Uuid, Uuid)>) -> StatusCode {
+    // Check if there is already a pending wave from the other user
+    let existing = sqlx::query("SELECT status FROM waves WHERE from_user_id = ? AND to_user_id = ?")
+        .bind(to_user.to_string())
+        .bind(from_user.to_string())
+        .fetch_optional(&state.db)
+        .await
+        .unwrap_or(None);
+
+    if let Some(row) = existing {
+        let status: String = row.get("status");
+        if status == "pending" {
+            // Reciprocal wave -> automatically accept
+            let _ = sqlx::query("UPDATE waves SET status = 'accepted' WHERE from_user_id = ? AND to_user_id = ?")
+                .bind(to_user.to_string())
+                .bind(from_user.to_string())
+                .execute(&state.db)
+                .await;
+
+            let _ = sqlx::query("INSERT INTO waves (from_user_id, to_user_id, status) VALUES (?, ?, 'accepted') ON CONFLICT(from_user_id, to_user_id) DO UPDATE SET status = 'accepted'")
+                .bind(from_user.to_string())
+                .bind(to_user.to_string())
+                .execute(&state.db)
+                .await;
+
+            return StatusCode::OK;
+        }
+    }
+
     let res = sqlx::query("INSERT INTO waves (from_user_id, to_user_id, status) VALUES (?, ?, 'pending') ON CONFLICT(from_user_id, to_user_id) DO UPDATE SET status = 'pending'")
         .bind(from_user.to_string())
         .bind(to_user.to_string())

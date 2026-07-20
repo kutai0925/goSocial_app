@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -114,77 +115,84 @@ export default function ChatScreen() {
     
     setWs(newWs);
 
-    const fetchData = async () => {
-      try {
-        const users = await getNearbyUsers(userId);
-        const msgList = await getMessages(userId);
-
-        const uMap = {};
-        users.forEach(u => uMap[u.user_id] = u.username);
-
-        const groups = {};
-
-        // Only add users who have a mutual or pending relationship
-        users.forEach(u => {
-          if (u.user_id !== userId && (u.relationship === "accepted" || u.relationship === "received" || u.relationship === "sent")) {
-            groups[u.user_id] = {
-              id: u.user_id,
-              name: u.relationship === "accepted" ? (u.username || "Unknown") : "Anonymous User",
-              avatar: u.profile_image || null,
-              lastMessage: u.relationship === "received" ? "Waved at you!" : u.relationship === "sent" ? "Wave sent" : "Start a conversation",
-              time: "",
-              unread: u.relationship === "received" ? 1 : 0,
-              online: true,
-              messages: [],
-              relationship: u.relationship,
-            };
-          }
-        });
-
-        // Add actual messages
-        msgList.forEach(m => {
-          const otherId = m.to_user_id;
-          if (!groups[otherId]) {
-            groups[otherId] = {
-              id: otherId,
-              name: uMap[otherId] || "Unknown",
-              avatar: null,
-              lastMessage: m.message,
-              time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              unread: 0,
-              online: true,
-              messages: [],
-            };
-          }
-          groups[otherId].messages.push({
-            id: m.id || m.timestamp + Math.random().toString(),
-            text: m.message,
-            time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            fromMe: !m.received,
-            timestamp: new Date(m.timestamp).getTime()
-          });
-
-          groups[otherId].lastMessage = m.message;
-          groups[otherId].time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        });
-
-        Object.values(groups).forEach(g => {
-          g.messages.sort((a, b) => a.timestamp - b.timestamp);
-        });
-
-        setChatData(Object.values(groups));
-
-      } catch (e) {
-        console.log("Error fetching chats", e);
-      }
-    };
-
-    fetchData();
-
     return () => {
       newWs.close();
     };
   }, [userId]);
+
+  const fetchData = async () => {
+    if (!userId) return;
+    try {
+      const users = await getNearbyUsers(userId);
+      const msgList = await getMessages(userId);
+
+      const uMap = {};
+      users.forEach(u => uMap[u.user_id] = u.username);
+
+      const groups = {};
+
+      // Only add users who have a mutual or pending relationship
+      users.forEach(u => {
+        if (u.user_id !== userId && (u.relationship === "accepted" || u.relationship === "received" || u.relationship === "sent")) {
+          groups[u.user_id] = {
+            id: u.user_id,
+            name: u.relationship === "accepted" ? (u.username || "Unknown") : "Anonymous User",
+            avatar: u.profile_image || null,
+            lastMessage: u.relationship === "received" ? "Waved at you!" : u.relationship === "sent" ? "Wave sent" : "Start a conversation",
+            time: "",
+            unread: u.relationship === "received" ? 1 : 0,
+            online: true,
+            messages: [],
+            relationship: u.relationship,
+          };
+        }
+      });
+
+      // Add actual messages
+      msgList.forEach(m => {
+        const otherId = m.from_user_id === userId ? m.to_user_id : m.from_user_id;
+        if (!groups[otherId]) {
+          groups[otherId] = {
+            id: otherId,
+            name: uMap[otherId] || "Unknown",
+            avatar: null,
+            lastMessage: m.message,
+            time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            unread: 0,
+            online: true,
+            messages: [],
+          };
+        }
+        groups[otherId].messages.push({
+          id: m.id || m.timestamp + Math.random().toString(),
+          text: m.message,
+          time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          fromMe: !m.received,
+          timestamp: new Date(m.timestamp).getTime()
+        });
+
+        groups[otherId].lastMessage = m.message;
+        groups[otherId].time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      });
+
+      Object.values(groups).forEach(g => {
+        g.messages.sort((a, b) => a.timestamp - b.timestamp);
+      });
+
+      setChatData(Object.values(groups));
+
+    } catch (e) {
+      console.log("Error fetching chats", e);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [userId])
+  );
+
+
 
   const filteredChats = chatData.filter((chat) =>
     chat.name.toLowerCase().includes(searchText.toLowerCase())
@@ -306,9 +314,13 @@ export default function ChatScreen() {
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.chatItem} onPress={() => openChat(item)}>
             <View style={styles.avatarWrapper}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
-              </View>
+              {item.avatar ? (
+                <Image source={{ uri: item.avatar }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{item.name ? item.name.charAt(0).toUpperCase() : "?"}</Text>
+                </View>
+              )}
 
               {item.online && <View style={styles.onlineDot} />}
             </View>
@@ -362,9 +374,13 @@ function ChatDetailScreen({
           <Text style={styles.backText}>‹</Text>
         </TouchableOpacity>
 
-        <View style={styles.detailAvatar}>
-          <Text style={styles.avatarText}>{chat.name.charAt(0)}</Text>
-        </View>
+        {chat.avatar ? (
+          <Image source={{ uri: chat.avatar }} style={styles.detailAvatar} />
+        ) : (
+          <View style={styles.detailAvatar}>
+            <Text style={styles.avatarText}>{chat.name ? chat.name.charAt(0).toUpperCase() : "?"}</Text>
+          </View>
+        )}
 
         <View style={styles.detailHeaderText}>
           <Text style={styles.detailName}>{chat.name}</Text>

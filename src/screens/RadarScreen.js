@@ -17,7 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import ChatPopup from "../components/ChatPopup";
 import ProfileScreen from "./ProfileScreen";
 import { useAuth } from "../context/AuthContext";
-import { getNearbyUsers } from "../api/users";
+import { setLocation as setBackendLocation, getNearbyUsers, getUser } from "../api/users";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CENTER = 225; // Center of the 450x450 radar container
@@ -34,84 +34,7 @@ const CIRCLE_COLORS = [
   "rgba(219, 165, 255, 0.65)",
 ];
 
-const generateMockDots = (userLat, userLon) => {
-  const list = [];
 
-  // 3 Friends with actual profile pic URLs from Unsplash (HTTPS secure & highly reliable)
-  const friends = [
-    { id: "friend1", username: "Sarah", img: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop", r: 85, angle: 45 },
-    { id: "friend2", username: "Alex", img: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop", r: 155, angle: 210 },
-    { id: "friend3", username: "Sophia", img: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=120&h=120&fit=crop", r: 195, angle: 315 },
-  ];
-
-  friends.forEach(f => {
-    const angleRad = (f.angle * Math.PI) / 180;
-    const x = f.r * Math.cos(angleRad);
-    const y = f.r * Math.sin(angleRad);
-
-    // Back-calculate lat/lon offsets
-    const MAX_RANGE_DEG = 0.0045; // 500m
-    const scale = 215 / MAX_RANGE_DEG;
-    const dLon = x / scale;
-    const dLat = -y / scale;
-
-    const userLatRad = (userLat * Math.PI) / 180;
-    const lon = userLon + dLon / Math.cos(userLatRad);
-    const lat = userLat + dLat;
-
-    list.push({
-      user_id: f.id,
-      username: f.username,
-      profile_pic_url: f.img,
-      coordinates: { lat, lon, accuracy: 10 },
-      x,
-      y,
-      size: 40, // Increased from 36 for better readability
-      distanceMeters: Math.round((f.r / 215) * 500),
-      isFriend: true
-    });
-  });
-
-  // 15 Anonymous/Black dots
-  const anonConfig = [
-    { r: 40, angle: 120 }, { r: 50, angle: 280 }, { r: 70, angle: 10 }, { r: 90, angle: 160 },
-    { r: 100, angle: 300 }, { r: 120, angle: 75 }, { r: 130, angle: 220 }, { r: 140, angle: 340 },
-    { r: 160, angle: 105 }, { r: 170, angle: 190 }, { r: 180, angle: 270 }, { r: 200, angle: 15 },
-    { r: 205, angle: 140 }, { r: 210, angle: 245 }, { r: 215, angle: 90 }
-  ];
-
-  anonConfig.forEach((cfg, idx) => {
-    const angleRad = (cfg.angle * Math.PI) / 180;
-    const x = cfg.r * Math.cos(angleRad);
-    const y = cfg.r * Math.sin(angleRad);
-
-    const MAX_RANGE_DEG = 0.0045;
-    const scale = 215 / MAX_RANGE_DEG;
-    const dLon = x / scale;
-    const dLat = -y / scale;
-
-    const userLatRad = (userLat * Math.PI) / 180;
-    const lon = userLon + dLon / Math.cos(userLatRad);
-    const lat = userLat + dLat;
-
-    const isTopHalf = y < 0;
-
-    list.push({
-      user_id: `anon_${idx}`,
-      username: null,
-      profile_pic_url: null,
-      coordinates: { lat, lon, accuracy: 25 },
-      x,
-      y,
-      size: 18, // Increased from 14 for easier visual tracking and interaction
-      distanceMeters: Math.round((cfg.r / 215) * 500),
-      isFriend: false,
-      isTopHalf
-    });
-  });
-
-  return list;
-};
 
 const generateBackendDots = (users, currentUserId, userLat, userLon) => {
   const list = [];
@@ -126,11 +49,21 @@ const generateBackendDots = (users, currentUserId, userLat, userLon) => {
     const MAX_RANGE_DEG = 0.0045; // 500m
     const scale = 215 / MAX_RANGE_DEG;
 
-    const x = dLon * scale;
-    const y = -dLat * scale; // Note: -y because y axis goes down in UI
+    let x = dLon * scale;
+    let y = -dLat * scale; // Note: -y because y axis goes down in UI
+
+    let r = Math.sqrt(x * x + y * y);
+    
+    // If users are perfectly overlapping (like on emulators) or too close to the center avatar, push them out randomly
+    if (r < 40) {
+      const angle = Math.random() * Math.PI * 2;
+      const pushOut = 45 + Math.random() * 20; // push outside the center avatar
+      x = Math.cos(angle) * pushOut;
+      y = Math.sin(angle) * pushOut;
+      r = Math.sqrt(x * x + y * y);
+    }
 
     const isTopHalf = y < 0;
-    const r = Math.sqrt(x * x + y * y);
     const distanceMeters = Math.round((r / 215) * 500);
 
     // Only include if within radar range roughly (plus some padding)
@@ -153,7 +86,7 @@ const generateBackendDots = (users, currentUserId, userLat, userLon) => {
   return list;
 };
 
-export default function RadarScreen({ onClose }) {
+export default function RadarScreen({ navigation }) {
   const { userId } = useAuth();
   const [selectedDot, setSelectedDot] = useState(null);
   const [dots, setDots] = useState([]);
@@ -161,6 +94,7 @@ export default function RadarScreen({ onClose }) {
   const [failedImages, setFailedImages] = useState({});
   const [activeChat, setActiveChat] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [currentUserImage, setCurrentUserImage] = useState(null);
 
   // Lifecycle ref to prevent async loading race conditions
   const isMounted = useRef(true);
@@ -228,14 +162,26 @@ export default function RadarScreen({ onClose }) {
         let backendDots = [];
         try {
           if (userId) {
+            // Ensure backend knows our location even if we haven't visited the map
+            try {
+              await setBackendLocation(userId, { lat, lon, accuracy: 10 });
+            } catch(e) {
+              console.log("Failed to sync radar location:", e);
+            }
+
             const users = await getNearbyUsers(userId);
             backendDots = generateBackendDots(users, userId, lat, lon);
+
+            const currentUser = await getUser(userId);
+            if (currentUser && currentUser.profile_image) {
+              setCurrentUserImage(currentUser.profile_image);
+            }
           }
         } catch (e) {
-          console.log("Error fetching radar nearby users", e);
+          console.log("Error fetching radar nearby users/profile", e);
         }
 
-        setDots([...generateMockDots(lat, lon), ...backendDots]);
+        setDots(backendDots);
       }
     };
 
@@ -556,7 +502,9 @@ export default function RadarScreen({ onClose }) {
         duration: 400,
         useNativeDriver: true,
       }).start(() => {
-        onClose();
+        if (navigation && navigation.goBack) {
+          navigation.goBack();
+        }
       });
     });
   };
@@ -595,6 +543,19 @@ export default function RadarScreen({ onClose }) {
       await sendWave(userId, dot.user_id);
     } catch (err) {
       console.log("Error sending wave:", err);
+    }
+  };
+
+  const handleAcceptWave = async (dot) => {
+    if (!userId || !dot.user_id) return;
+    try {
+      setDots(prev => prev.map(d => d.user_id === dot.user_id ? { ...d, isFriend: true, relationship: "accepted" } : d));
+      setSelectedDot(prev => prev && prev.user_id === dot.user_id ? { ...prev, isFriend: true, relationship: "accepted" } : prev);
+
+      const { acceptWave } = require("../api/users");
+      await acceptWave(userId, dot.user_id);
+    } catch (err) {
+      console.log("Error accepting wave:", err);
     }
   };
 
@@ -752,7 +713,7 @@ export default function RadarScreen({ onClose }) {
                         ]}
                       >
                         <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 13 }}>
-                          {dot.username ? dot.username[0] : "?"}
+                          {dot.username ? dot.username.charAt(0).toUpperCase() : "?"}
                         </Text>
                       </View>
                     ) : (
@@ -779,10 +740,16 @@ export default function RadarScreen({ onClose }) {
             ]}
           >
             <TouchableOpacity activeOpacity={0.85} onPress={() => setShowProfile(true)}>
-              <Image
-                source={require("../../assets/images/radar_avatar.png")}
-                style={styles.avatarImage}
-              />
+              {currentUserImage ? (
+                <Image
+                  source={{ uri: currentUserImage }}
+                  style={styles.avatarImage}
+                />
+              ) : (
+                <View style={[styles.avatarImage, { backgroundColor: "#8F4CC7", alignItems: "center", justifyContent: "center" }]}>
+                  <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 24 }}>?</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -796,8 +763,10 @@ export default function RadarScreen({ onClose }) {
                 style={styles.cardAvatar}
               />
             ) : (
-              <View style={styles.cardAnonAvatar}>
-                <Text style={styles.cardAnonIcon}>👤</Text>
+              <View style={[styles.cardAvatar, { backgroundColor: "#8F4CC7", alignItems: "center", justifyContent: "center" }]}>
+                <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 20 }}>
+                  {selectedDot.username ? selectedDot.username.charAt(0).toUpperCase() : "?"}
+                </Text>
               </View>
             )}
 
@@ -821,6 +790,10 @@ export default function RadarScreen({ onClose }) {
             ) : selectedDot.relationship === "sent" ? (
               <TouchableOpacity style={[styles.cardAnonButton, { opacity: 0.5 }]} disabled>
                 <Text style={styles.cardAnonButtonText}>Wave Sent</Text>
+              </TouchableOpacity>
+            ) : selectedDot.relationship === "received" ? (
+              <TouchableOpacity style={[styles.cardAnonButton, { backgroundColor: "#FF2E93" }]} activeOpacity={0.8} onPress={() => handleAcceptWave(selectedDot)}>
+                <Text style={styles.cardAnonButtonText}>Accept Wave</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity style={styles.cardAnonButton} activeOpacity={0.8} onPress={() => handleSendWave(selectedDot)}>

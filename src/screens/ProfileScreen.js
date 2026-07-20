@@ -94,14 +94,15 @@ export default function ProfileScreen({ onClose }) {
           </TouchableOpacity>
 
           <View style={styles.profileRow}>
-            <Image
-              source={
-                profile.profileImage
-                  ? { uri: profile.profileImage }
-                  : require("../../assets/images/radar_avatar.png")
-              }
-              style={styles.avatar}
-            />
+            {profile.profileImage ? (
+              <Image source={{ uri: profile.profileImage }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: "#8F4CC7", alignItems: "center", justifyContent: "center" }]}>
+                <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 40 }}>
+                  {profile.firstName ? profile.firstName.charAt(0).toUpperCase() : "?"}
+                </Text>
+              </View>
+            )}
 
             <View style={styles.profileInfo}>
               <Text style={styles.name}>

@@ -1,24 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { View, Image, StatusBar, StyleSheet, Text } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { NavigationContainer } from "@react-navigation/native";
 
-import AppLayout from "./src/layouts/AppLayout";
-import MapScreen from "./src/screens/MapScreen";
-import ChatScreen from "./src/screens/ChatScreen";
-import RadarScreen from "./src/screens/RadarScreen";
-import LoginScreen from "./src/screens/LoginScreen";
-import SignUpScreen from "./src/screens/SignUpScreen";
-import ProfileScreen from "./src/screens/ProfileScreen";
-import DiscoverEventScreen from "./src/screens/DiscoverEventScreen";
-
+import RootNavigator from "./src/navigation/RootNavigator";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 
 function MainApp() {
   const [showLanding, setShowLanding] = useState(true);
-  const [authScreen, setAuthScreen] = useState("login");
-  const { isAuthenticated } = useAuth();
-  const [currentScreen, setCurrentScreen] = useState("map");
-  const [showRadar, setShowRadar] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -32,50 +21,10 @@ function MainApp() {
     return <LandingScreen />;
   }
 
-  if (!isAuthenticated) {
-    if (authScreen === "signup") {
-      return (
-        <SignUpScreen
-          onBackToLogin={() => setAuthScreen("login")}
-        />
-      );
-    }
-
-    return (
-      <LoginScreen
-        onNavigateToSignUp={() => setAuthScreen("signup")}
-      />
-    );
-  }
-
   return (
-    <View style={styles.container}>
-      <AppLayout
-        activeScreen={currentScreen}
-        hidePlusButton={showRadar}
-        onNavigate={(screen) => {
-          if (screen === "radar") {
-            setShowRadar(true);
-          } else {
-            setCurrentScreen(screen);
-          }
-        }}
-      >
-        {currentScreen === "chat" ? (
-          <ChatScreen />
-        ) : currentScreen === "profile" ? (
-          <ProfileScreen />
-        ) : currentScreen === "discover" ? (
-          <DiscoverEventScreen />
-        ) : (
-          <MapScreen />
-        )}
-      </AppLayout>
-
-      {showRadar && (
-        <RadarScreen onClose={() => setShowRadar(false)} />
-      )}
-    </View>
+    <NavigationContainer>
+      <RootNavigator />
+    </NavigationContainer>
   );
 }
 
@@ -104,27 +53,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#000000",
   },
-
   landingContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
   },
-
   logo: {
     width: 230,
     height: 230,
     marginBottom: 36,
   },
-
   appName: {
     color: "#FFFFFF",
     fontSize: 28,
     fontWeight: "700",
     marginBottom: 14,
   },
-
   tagline: {
     color: "#FFFFFF",
     fontSize: 17,

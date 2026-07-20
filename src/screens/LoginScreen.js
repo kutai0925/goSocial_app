@@ -16,7 +16,7 @@ import { isValidUsernameOrEmail } from "../utils/validation";
 
 import { useAuth } from "../context/AuthContext";
 
-export default function LoginScreen({ onNavigateToSignUp }) {
+export default function LoginScreen({ navigation }) {
   const { loginUser } = useAuth();
   const [usernameOrEmail, setUsernameOrEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -92,13 +92,13 @@ export default function LoginScreen({ onNavigateToSignUp }) {
 
           <Text style={styles.memberText}>not a member yet?</Text>
 
-          <TouchableOpacity onPress={onNavigateToSignUp}>
+          <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
             <Text style={styles.emailSignUpLink}>sign up with email</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.socialButton, styles.spotifyButton]}
-            onPress={onNavigateToSignUp}
+            onPress={() => navigation.navigate("SignUp")}
           >
             <View style={[styles.socialIcon, styles.spotifyIcon]}>
               <Text style={styles.socialIconGlyph}>♫</Text>
@@ -110,7 +110,7 @@ export default function LoginScreen({ onNavigateToSignUp }) {
 
           <TouchableOpacity
             style={[styles.socialButton, styles.youtubeButton]}
-            onPress={onNavigateToSignUp}
+            onPress={() => navigation.navigate("SignUp")}
           >
             <View style={[styles.socialIcon, styles.youtubeIcon]}>
               <Text style={styles.socialIconGlyph}>▶</Text>
