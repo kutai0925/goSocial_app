@@ -39,8 +39,10 @@ const DEFAULT_PROFILE = {
   profileImage: null,
 };
 
-export default function ProfileScreen({ onClose }) {
-  const { userId } = useAuth();
+export default function ProfileScreen({ route, navigation, onClose }) {
+  const { userId: currentUserId } = useAuth();
+  const userId = route?.params?.userId || currentUserId;
+  const isOwnProfile = userId === currentUserId;
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -89,8 +91,11 @@ export default function ProfileScreen({ onClose }) {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.menuButton} onPress={onClose}>
-            <Text style={styles.menuIcon}>☰</Text>
+          <TouchableOpacity style={styles.menuButton} onPress={() => {
+            if (onClose) onClose();
+            else if (navigation) navigation.goBack();
+          }}>
+            <Text style={styles.menuIcon}>{!isOwnProfile ? "←" : "☰"}</Text>
           </TouchableOpacity>
 
           <View style={styles.profileRow}>
@@ -113,13 +118,15 @@ export default function ProfileScreen({ onClose }) {
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.editButton}
-            activeOpacity={0.8}
-            onPress={() => setShowEditProfile(true)}
-          >
-            <Text style={styles.editButtonText}>Edit Profile</Text>
-          </TouchableOpacity>
+          {isOwnProfile && (
+            <TouchableOpacity
+              style={styles.editButton}
+              activeOpacity={0.8}
+              onPress={() => setShowEditProfile(true)}
+            >
+              <Text style={styles.editButtonText}>Edit Profile</Text>
+            </TouchableOpacity>
+          )}
 
           <View style={styles.statsBox}>
             <View style={styles.statItem}>

@@ -77,7 +77,12 @@ struct PostMessagePayload {
 
 #[derive(Serialize, Deserialize, Clone)]
 struct WsPayload {
-    message: ChatMessage,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<ChatMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    event: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<serde_json::Value>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -251,7 +256,15 @@ async fn set_location(State(state): State<AppState>, Path(user_id): Path<Uuid>, 
         .bind(user_id.to_string())
         .execute(&state.db)
         .await;
-    if res.is_ok() { StatusCode::OK } else { StatusCode::BAD_REQUEST }
+        
+    if res.is_ok() { 
+        if let Ok(json) = serde_json::to_string(&WsPayload { message: None, event: Some("LOCATION_UPDATE".to_string()), data: None }) {
+            let _ = state.tx.send(json);
+        }
+        StatusCode::OK 
+    } else { 
+        StatusCode::BAD_REQUEST 
+    }
 }
 
 #[axum::debug_handler]
@@ -396,6 +409,9 @@ async fn send_wave(State(state): State<AppState>, Path((from_user, to_user)): Pa
                 .execute(&state.db)
                 .await;
 
+            if let Ok(json) = serde_json::to_string(&WsPayload { message: None, event: Some("WAVE_UPDATE".to_string()), data: None }) {
+                let _ = state.tx.send(json);
+            }
             return StatusCode::OK;
         }
     }
@@ -406,7 +422,14 @@ async fn send_wave(State(state): State<AppState>, Path((from_user, to_user)): Pa
         .execute(&state.db)
         .await;
 
-    if res.is_ok() { StatusCode::OK } else { StatusCode::BAD_REQUEST }
+    if res.is_ok() { 
+        if let Ok(json) = serde_json::to_string(&WsPayload { message: None, event: Some("WAVE_UPDATE".to_string()), data: None }) {
+            let _ = state.tx.send(json);
+        }
+        StatusCode::OK 
+    } else { 
+        StatusCode::BAD_REQUEST 
+    }
 }
 
 #[axum::debug_handler]
@@ -424,7 +447,14 @@ async fn accept_wave(State(state): State<AppState>, Path((from_user, to_user)): 
         .execute(&state.db)
         .await;
 
-    if res.is_ok() { StatusCode::OK } else { StatusCode::BAD_REQUEST }
+    if res.is_ok() { 
+        if let Ok(json) = serde_json::to_string(&WsPayload { message: None, event: Some("WAVE_UPDATE".to_string()), data: None }) {
+            let _ = state.tx.send(json);
+        }
+        StatusCode::OK 
+    } else { 
+        StatusCode::BAD_REQUEST 
+    }
 }
 
 #[axum::debug_handler]
@@ -469,7 +499,7 @@ async fn post_message(
     };
 
     // Broadcast to websockets
-    if let Ok(json) = serde_json::to_string(&WsPayload { message: msg.clone() }) {
+    if let Ok(json) = serde_json::to_string(&WsPayload { message: Some(msg.clone()), event: None, data: None }) {
         let _ = state.tx.send(json);
     }
 
@@ -494,7 +524,7 @@ async fn post_message(
             timestamp: reply_ts,
             received: true,
         };
-        if let Ok(json) = serde_json::to_string(&WsPayload { message: bmsg }) {
+        if let Ok(json) = serde_json::to_string(&WsPayload { message: Some(bmsg), event: None, data: None }) {
             let _ = state.tx.send(json);
         }
     }

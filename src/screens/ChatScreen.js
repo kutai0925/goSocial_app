@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -13,7 +13,44 @@ import {
   Platform,
   ScrollView,
   BackHandler,
+  Animated,
+  Dimensions,
 } from "react-native";
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+const EmojiParticle = ({ id, onComplete }) => {
+  const animY = useRef(new Animated.Value(0)).current;
+  const animX = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+  const scale = useRef(new Animated.Value(0.5)).current;
+
+  useEffect(() => {
+    const endY = -150 - Math.random() * 150;
+    const endX = -100 + Math.random() * 200;
+    
+    Animated.parallel([
+      Animated.timing(animY, { toValue: endY, duration: 800 + Math.random() * 400, useNativeDriver: true }),
+      Animated.timing(animX, { toValue: endX, duration: 800 + Math.random() * 400, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 0, duration: 800 + Math.random() * 400, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1.5 + Math.random(), duration: 800, useNativeDriver: true }),
+    ]).start(() => onComplete(id));
+  }, []);
+
+  return (
+    <Animated.Text style={{
+      position: 'absolute',
+      left: SCREEN_WIDTH / 2 - 14, // Center horizontally
+      bottom: 60,
+      opacity,
+      transform: [{ translateX: animX }, { translateY: animY }, { scale }],
+      fontSize: 28,
+      zIndex: 1000
+    }}>
+      ☺
+    </Animated.Text>
+  );
+};
 
 
 
@@ -23,6 +60,7 @@ import { getNearbyUsers, acceptWave, declineWave } from "../api/users";
 import { WS_BASE_URL } from "../api/config";
 
 export default function ChatScreen() {
+  const navigation = useNavigation();
   const { userId } = useAuth();
   const [selectedChatId, setSelectedChatId] = useState(null);
   const selectedChatIdRef = React.useRef(selectedChatId);
@@ -33,21 +71,22 @@ export default function ChatScreen() {
 
   const selectedChat = chatData.find((c) => c.id === selectedChatId) || null;
 
-  useEffect(() => {
-    selectedChatIdRef.current = selectedChatId;
-    
-    // Handle Android back button
-    const onBackPress = () => {
-      if (selectedChatIdRef.current) {
-        setSelectedChatId(null);
-        return true; // prevent default behavior (exit app)
-      }
-      return false; // let default behavior happen
-    };
+  useFocusEffect(
+    useCallback(() => {
+      selectedChatIdRef.current = selectedChatId;
+      
+      const onBackPress = () => {
+        if (selectedChatIdRef.current) {
+          setSelectedChatId(null);
+          return true;
+        }
+        return false;
+      };
 
-    const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
-    return () => subscription.remove();
-  }, [selectedChatId]);
+      const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => subscription.remove();
+    }, [selectedChatId])
+  );
 
   useEffect(() => {
     if (!userId) return;
@@ -56,10 +95,16 @@ export default function ChatScreen() {
     newWs.onopen = () => {
       console.log("WebSocket connected");
     };
-    newWs.onmessage = (e) => {
-      try {
-        const payload = JSON.parse(e.data);
-        const m = payload.message;
+      newWs.onmessage = (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          const m = payload.message;
+          if (!m) {
+            if (payload.event === "WAVE_UPDATE") {
+              fetchData();
+            }
+            return;
+          }
         
         setChatData(prevData => {
           const newData = [...prevData];
@@ -254,6 +299,7 @@ export default function ChatScreen() {
     try {
       await acceptWave(userId, chatId);
       setChatData(prev => prev.map(c => c.id === chatId ? { ...c, relationship: "accepted", lastMessage: "Wave accepted! Say hi." } : c));
+      await fetchData(); // Refresh data to get the real username
     } catch(e) { console.log(e); }
   };
 
@@ -275,6 +321,7 @@ export default function ChatScreen() {
         onSend={sendMessage}
         onAcceptWave={() => handleAcceptWave(selectedChat.id)}
         onDeclineWave={() => handleDeclineWave(selectedChat.id)}
+        onAvatarPress={() => navigation.navigate("UserProfile", { userId: selectedChat.id })}
       />
     );
   }
@@ -358,15 +405,39 @@ export default function ChatScreen() {
   );
 }
 
-function ChatDetailScreen({
-  chat,
-  onBack,
-  messageText,
-  setMessageText,
-  onSend,
-  onAcceptWave,
-  onDeclineWave,
-}) {
+const ChatDetailScreen = ({ chat, onBack, messageText, setMessageText, onSend, onAcceptWave, onDeclineWave, onAvatarPress }) => {
+  const [particles, setParticles] = useState([]);
+
+  const triggerExplosion = (count = 12) => {
+    const newParticles = Array.from({ length: count }).map((_, i) => ({
+      id: Date.now().toString() + i + Math.random().toString()
+    }));
+    setParticles(prev => [...prev, ...newParticles]);
+  };
+
+  const removeParticle = (id) => {
+    setParticles(prev => prev.filter(p => p.id !== id));
+  };
+
+  const prevMessagesLengthRef = useRef(chat.messages.length);
+
+  useEffect(() => {
+    if (chat.messages.length > prevMessagesLengthRef.current) {
+      const lastMessage = chat.messages[chat.messages.length - 1];
+      if (lastMessage) {
+        const emojiCount = (lastMessage.text.match(/☺/g) || []).length;
+        if (emojiCount > 0) {
+          triggerExplosion(Math.min(emojiCount * 12, 60)); // Cap at 60 particles
+        }
+      }
+    }
+    prevMessagesLengthRef.current = chat.messages.length;
+  }, [chat.messages]);
+
+  const handleEmojiPress = () => {
+    setMessageText(prev => prev + "☺");
+  };
+
   return (
     <SafeAreaView style={styles.detailContainer}>
       <View style={styles.detailHeader}>
@@ -374,20 +445,22 @@ function ChatDetailScreen({
           <Text style={styles.backText}>‹</Text>
         </TouchableOpacity>
 
-        {chat.avatar ? (
-          <Image source={{ uri: chat.avatar }} style={styles.detailAvatar} />
-        ) : (
-          <View style={styles.detailAvatar}>
-            <Text style={styles.avatarText}>{chat.name ? chat.name.charAt(0).toUpperCase() : "?"}</Text>
-          </View>
-        )}
+        <TouchableOpacity style={{flexDirection: 'row', alignItems: 'center', flex: 1}} onPress={onAvatarPress}>
+          {chat.avatar ? (
+            <Image source={{ uri: chat.avatar }} style={styles.detailAvatar} />
+          ) : (
+            <View style={styles.detailAvatar}>
+              <Text style={styles.avatarText}>{chat.name ? chat.name.charAt(0).toUpperCase() : "?"}</Text>
+            </View>
+          )}
 
-        <View style={styles.detailHeaderText}>
-          <Text style={styles.detailName}>{chat.name}</Text>
-          <Text style={styles.detailStatus}>
-            {chat.online ? "online" : "last seen recently"}
-          </Text>
-        </View>
+          <View style={styles.detailHeaderText}>
+            <Text style={styles.detailName}>{chat.name}</Text>
+            <Text style={styles.detailStatus}>
+              {chat.online ? "online" : "last seen recently"}
+            </Text>
+          </View>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.detailIconButton}>
           <Text style={styles.detailIcon}>☎</Text>
@@ -400,7 +473,8 @@ function ChatDetailScreen({
 
       <KeyboardAvoidingView
         style={styles.chatDetailBody}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 25}
       >
         <ScrollView
           style={styles.messagesContainer}
@@ -458,23 +532,27 @@ function ChatDetailScreen({
           </View>
         ) : (
           <View style={styles.inputBar}>
-            <TouchableOpacity style={styles.emojiButton}>
+            <TouchableOpacity style={styles.emojiButton} onPress={handleEmojiPress}>
               <Text style={styles.emojiText}>☺</Text>
             </TouchableOpacity>
-
             <TextInput
               style={styles.messageInput}
-              placeholder="Message"
-              placeholderTextColor="#8C8C8C"
+              placeholder="Message..."
+              placeholderTextColor="#8B8B8B"
               value={messageText}
               onChangeText={setMessageText}
+              onSubmitEditing={onSend}
             />
-
             <TouchableOpacity style={styles.sendButton} onPress={onSend}>
               <Text style={styles.sendText}>➤</Text>
             </TouchableOpacity>
           </View>
         )}
+        
+        {/* Render Emoji Particles */}
+        {particles.map(p => (
+          <EmojiParticle key={p.id} id={p.id} onComplete={removeParticle} />
+        ))}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

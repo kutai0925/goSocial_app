@@ -18,6 +18,7 @@ import ChatPopup from "../components/ChatPopup";
 import ProfileScreen from "./ProfileScreen";
 import { useAuth } from "../context/AuthContext";
 import { setLocation as setBackendLocation, getNearbyUsers, getUser } from "../api/users";
+import { WS_BASE_URL } from "../api/config";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CENTER = 225; // Center of the 450x450 radar container
@@ -187,6 +188,21 @@ export default function RadarScreen({ navigation }) {
 
     loadLocationAndDots();
 
+    let ws = null;
+    if (userId) {
+      ws = new WebSocket(`${WS_BASE_URL}/v1/ws/chat/${userId}`);
+      ws.onmessage = (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (payload.event === "WAVE_UPDATE" || payload.event === "LOCATION_UPDATE") {
+            loadLocationAndDots();
+          }
+        } catch (err) {
+          console.log("Radar ws error:", err);
+        }
+      };
+    }
+
     // 2. Configure and play the radar audio
     loadAndPlaySound();
 
@@ -248,6 +264,7 @@ export default function RadarScreen({ navigation }) {
     // Cleanup resources on unmount
     return () => {
       isMounted.current = false;
+      if (ws) ws.close();
       unsubscribeSensors();
       cleanupAudio();
     };
@@ -757,27 +774,36 @@ export default function RadarScreen({ navigation }) {
         {/* Selected Dot Glassmorphic Details Card */}
         {selectedDot && (
           <View style={styles.detailsCard}>
-            {selectedDot.profile_pic_url ? (
-              <Image
-                source={{ uri: selectedDot.profile_pic_url }}
-                style={styles.cardAvatar}
-              />
-            ) : (
-              <View style={[styles.cardAvatar, { backgroundColor: "#8F4CC7", alignItems: "center", justifyContent: "center" }]}>
-                <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 20 }}>
-                  {selectedDot.username ? selectedDot.username.charAt(0).toUpperCase() : "?"}
+            <TouchableOpacity 
+              activeOpacity={0.8} 
+              onPress={() => {
+                handleClose();
+                navigation.navigate('UserProfile', { userId: selectedDot.user_id });
+              }}
+              style={{flexDirection: 'row', alignItems: 'center'}}
+            >
+              {selectedDot.profile_pic_url ? (
+                <Image
+                  source={{ uri: selectedDot.profile_pic_url }}
+                  style={styles.cardAvatar}
+                />
+              ) : (
+                <View style={[styles.cardAvatar, { backgroundColor: "#8F4CC7", alignItems: "center", justifyContent: "center" }]}>
+                  <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 20 }}>
+                    {selectedDot.username ? selectedDot.username.charAt(0).toUpperCase() : "?"}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.cardTextContainer}>
+                <Text style={styles.cardTitle}>
+                  {selectedDot.username || "Mystery User"}
+                </Text>
+                <Text style={styles.cardSubtitle}>
+                  {selectedDot.distanceMeters}m away • {selectedDot.isFriend ? "98% Screen-Free" : "Nearby Social Zone"}
                 </Text>
               </View>
-            )}
-
-            <View style={styles.cardTextContainer}>
-              <Text style={styles.cardTitle}>
-                {selectedDot.username || "Mystery User"}
-              </Text>
-              <Text style={styles.cardSubtitle}>
-                {selectedDot.distanceMeters}m away • {selectedDot.isFriend ? "98% Screen-Free" : "Nearby Social Zone"}
-              </Text>
-            </View>
+            </TouchableOpacity>
 
             {selectedDot.isFriend ? (
               <TouchableOpacity

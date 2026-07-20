@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import AuthNavigator from './AuthNavigator';
 import TabNavigator from './TabNavigator';
 import RadarScreen from '../screens/RadarScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -19,6 +20,10 @@ export default function RootNavigator() {
             name="Radar" 
             component={RadarScreen} 
             options={{ presentation: 'fullScreenModal' }} 
+          />
+          <Stack.Screen 
+            name="UserProfile" 
+            component={ProfileScreen} 
           />
         </>
       ) : (
