@@ -14,6 +14,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Magnetometer } from "expo-sensors";
 import { Audio } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import ChatPopup from "../components/ChatPopup";
+import ProfileScreen from "./ProfileScreen";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CENTER = 225; // Center of the 450x450 radar container
@@ -114,6 +116,8 @@ export default function RadarScreen({ onClose }) {
   const [dots, setDots] = useState([]);
   const [userCoords, setUserCoords] = useState(null);
   const [failedImages, setFailedImages] = useState({});
+  const [activeChat, setActiveChat] = useState(null);
+  const [showProfile, setShowProfile] = useState(false);
 
   // Lifecycle ref to prevent async loading race conditions
   const isMounted = useRef(true);
@@ -516,6 +520,33 @@ export default function RadarScreen({ onClose }) {
     }
   };
 
+  const handleSayHello = (dot) => {
+    setActiveChat({
+      user_id: dot.user_id,
+      username: dot.username,
+      profile_pic_url: dot.profile_pic_url,
+      messages: [{ id: "greeting", text:"Lets have some Meet!",  time: "Now", fromMe: true }],
+    });
+  };
+
+  const closeChatPopup = () => {
+    setActiveChat(null);
+  };
+
+  const sendChatPopupMessage = (text) => {
+    setActiveChat((prev) =>
+      prev
+        ? {
+            ...prev,
+            messages: [
+              ...prev.messages,
+              { id: Date.now().toString(), text, time: "Now", fromMe: true },
+            ],
+          }
+        : prev
+    );
+  };
+
   const getDotStyle = (x, y, size) => {
     return {
       position: "absolute",
@@ -678,10 +709,12 @@ export default function RadarScreen({ onClose }) {
               },
             ]}
           >
-            <Image
-              source={require("../../assets/images/radar_avatar.png")}
-              style={styles.avatarImage}
-            />
+            <TouchableOpacity activeOpacity={0.85} onPress={() => setShowProfile(true)}>
+              <Image
+                source={require("../../assets/images/radar_avatar.png")}
+                style={styles.avatarImage}
+              />
+            </TouchableOpacity>
           </Animated.View>
         </View>
 
@@ -709,7 +742,11 @@ export default function RadarScreen({ onClose }) {
             </View>
 
             {selectedDot.isFriend ? (
-              <TouchableOpacity style={styles.cardButton} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.cardButton}
+                activeOpacity={0.8}
+                onPress={() => handleSayHello(selectedDot)}
+              >
                 <Text style={styles.cardButtonText}>Say Hello</Text>
               </TouchableOpacity>
             ) : (
@@ -729,6 +766,19 @@ export default function RadarScreen({ onClose }) {
           <Text style={styles.closeIcon}>✕</Text>
         </TouchableOpacity>
       </Animated.View>
+
+      <ChatPopup
+        visible={activeChat !== null}
+        friend={activeChat}
+        onClose={closeChatPopup}
+        onSend={sendChatPopupMessage}
+      />
+
+      {showProfile && (
+        <View style={StyleSheet.absoluteFillObject}>
+          <ProfileScreen onClose={() => setShowProfile(false)} />
+        </View>
+      )}
     </View>
   );
 }

@@ -8,6 +8,8 @@ import ChatScreen from "./src/screens/ChatScreen";
 import RadarScreen from "./src/screens/RadarScreen";
 import LoginScreen from "./src/screens/LoginScreen";
 import SignUpScreen from "./src/screens/SignUpScreen";
+import ProfileScreen from "./src/screens/ProfileScreen";
+import DiscoverEventScreen from "./src/screens/DiscoverEventScreen";
 
 export default function App() {
   const [showLanding, setShowLanding] = useState(true);
@@ -59,7 +61,15 @@ export default function App() {
           }
         }}
       >
-        {currentScreen === "chat" ? <ChatScreen /> : <MapScreen />}
+        {currentScreen === "chat" ? (
+          <ChatScreen />
+        ) : currentScreen === "profile" ? (
+          <ProfileScreen />
+        ) : currentScreen === "discover" ? (
+          <DiscoverEventScreen />
+        ) : (
+          <MapScreen />
+        )}
       </AppLayout>
 
       {showRadar && (

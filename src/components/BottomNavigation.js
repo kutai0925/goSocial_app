@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  Alert,
 } from "react-native";
 
 export default function BottomNavigation({ activeScreen, hidePlusButton, onNavigate }) {
@@ -50,14 +49,14 @@ export default function BottomNavigation({ activeScreen, hidePlusButton, onNavig
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => Alert.alert("Notifications", "Notifications Screen kommt später.")}
+          onPress={() => onNavigate("discover")}
         >
           <Image
             source={require("../../assets/icons/notification.png")}
             style={[
               styles.icon,
               styles.scaledIcon,
-              activeScreen === "notifications" && styles.activeIcon,
+              activeScreen === "discover" && styles.activeIcon,
             ]}
             resizeMode="contain"
           />
@@ -65,7 +64,7 @@ export default function BottomNavigation({ activeScreen, hidePlusButton, onNavig
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => Alert.alert("Profile", "Profile Screen kommt später.")}
+          onPress={() => onNavigate("profile")}
         >
           <Image
             source={require("../../assets/icons/profile.png")}
