@@ -19,7 +19,9 @@ export default function EditProfileScreen({ profile, onCancel, onSave }) {
   const [lastName, setLastName] = useState(profile.lastName || "");
   const [location, setLocation] = useState(profile.location || "");
   const [bio, setBio] = useState(profile.bio || "");
-  const [profileImage, setProfileImage] = useState(profile.profileImage || null);
+  const [profileImage, setProfileImage] = useState(
+    profile.profileImage || null,
+  );
 
   const canSave = firstName.trim().length > 0 && lastName.trim().length > 0;
 
@@ -49,8 +51,16 @@ export default function EditProfileScreen({ profile, onCancel, onSave }) {
   };
 
   return (
-    <Modal visible transparent={false} animationType="slide" onRequestClose={onCancel}>
-      <LinearGradient colors={["#3A005F", "#6B159E", "#B83CFF"]} style={styles.container}>
+    <Modal
+      visible
+      transparent={false}
+      animationType="slide"
+      onRequestClose={onCancel}
+    >
+      <LinearGradient
+        colors={["#3A005F", "#6B159E", "#B83CFF"]}
+        style={styles.container}
+      >
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -65,7 +75,9 @@ export default function EditProfileScreen({ profile, onCancel, onSave }) {
               </TouchableOpacity>
               <Text style={styles.heading}>Edit Profile</Text>
               <TouchableOpacity onPress={handleSave} disabled={!canSave}>
-                <Text style={[styles.saveText, !canSave && styles.saveTextDisabled]}>
+                <Text
+                  style={[styles.saveText, !canSave && styles.saveTextDisabled]}
+                >
                   Save
                 </Text>
               </TouchableOpacity>
@@ -74,8 +86,19 @@ export default function EditProfileScreen({ profile, onCancel, onSave }) {
             {profileImage ? (
               <Image source={{ uri: profileImage }} style={styles.avatar} />
             ) : (
-              <View style={[styles.avatar, { backgroundColor: "#8F4CC7", alignItems: "center", justifyContent: "center" }]}>
-                <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 40 }}>
+              <View
+                style={[
+                  styles.avatar,
+                  {
+                    backgroundColor: "#8F4CC7",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  },
+                ]}
+              >
+                <Text
+                  style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 40 }}
+                >
                   {firstName ? firstName.charAt(0).toUpperCase() : ""}
                 </Text>
               </View>

@@ -1,13 +1,11 @@
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 
-export default function BottomNavigation({ activeScreen, hidePlusButton, onNavigate }) {
+export default function BottomNavigation({
+  activeScreen,
+  hidePlusButton,
+  onNavigate,
+}) {
   return (
     <View style={styles.wrapper}>
       <View style={styles.navBar}>
@@ -17,10 +15,7 @@ export default function BottomNavigation({ activeScreen, hidePlusButton, onNavig
         >
           <Image
             source={require("../../assets/icons/home.png")}
-            style={[
-              styles.icon,
-              activeScreen === "map" && styles.activeIcon,
-            ]}
+            style={[styles.icon, activeScreen === "map" && styles.activeIcon]}
             resizeMode="contain"
           />
         </TouchableOpacity>
@@ -31,10 +26,7 @@ export default function BottomNavigation({ activeScreen, hidePlusButton, onNavig
         >
           <Image
             source={require("../../assets/icons/chat.png")}
-            style={[
-              styles.icon,
-              activeScreen === "chat" && styles.activeIcon,
-            ]}
+            style={[styles.icon, activeScreen === "chat" && styles.activeIcon]}
             resizeMode="contain"
           />
         </TouchableOpacity>

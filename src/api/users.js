@@ -22,13 +22,19 @@ export function deleteUser(userId) {
 
 // -> User { username, user_id, coordinates, firstName, lastName, bio, location, profileImage }
 export function getUser(userId, viewerId) {
-  return apiRequest(viewerId ? `/v1/users/${userId}?viewer_id=${viewerId}` : `/v1/users/${userId}`);
+  return apiRequest(
+    viewerId
+      ? `/v1/users/${userId}?viewer_id=${viewerId}`
+      : `/v1/users/${userId}`,
+  );
 }
 
 // -> User[]
 export function getNearbyUsers(userId) {
   // Pass userId to get relationship statuses
-  return apiRequest(userId ? `/v1/users/nearby?user_id=${userId}` : "/v1/users/nearby");
+  return apiRequest(
+    userId ? `/v1/users/nearby?user_id=${userId}` : "/v1/users/nearby",
+  );
 }
 
 export function setLocation(userId, { lat, lon, accuracy }) {
@@ -54,19 +60,19 @@ export function updateProfile(userId, profileData) {
 // Waves API
 export function sendWave(fromUserId, toUserId) {
   return apiRequest(`/v1/waves/${fromUserId}/${toUserId}`, {
-    method: "POST"
+    method: "POST",
   });
 }
 
 export function acceptWave(fromUserId, toUserId) {
   // Accepts a wave that was sent from fromUserId to toUserId
   return apiRequest(`/v1/waves/${fromUserId}/${toUserId}/accept`, {
-    method: "PUT"
+    method: "PUT",
   });
 }
 
 export function declineWave(fromUserId, toUserId) {
   return apiRequest(`/v1/waves/${fromUserId}/${toUserId}/decline`, {
-    method: "PUT"
+    method: "PUT",
   });
 }

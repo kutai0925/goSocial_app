@@ -19,7 +19,12 @@ export default function EventSummaryScreen({ event, onClose }) {
   const categoryStyle = getCategoryStyle(event.category);
 
   return (
-    <Modal visible transparent={false} animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible
+      transparent={false}
+      animationType="slide"
+      onRequestClose={onClose}
+    >
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
 
@@ -32,17 +37,36 @@ export default function EventSummaryScreen({ event, onClose }) {
                 onError={() => setImageFailed(true)}
               />
             ) : (
-              <View style={[styles.image, styles.imageFallback, { backgroundColor: categoryStyle.bg }]}>
-                <Text style={styles.imageFallbackText}>{event.category[0]}</Text>
+              <View
+                style={[
+                  styles.image,
+                  styles.imageFallback,
+                  { backgroundColor: categoryStyle.bg },
+                ]}
+              >
+                <Text style={styles.imageFallbackText}>
+                  {event.category[0]}
+                </Text>
               </View>
             )}
 
-            <TouchableOpacity style={styles.closeButton} activeOpacity={0.8} onPress={onClose}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              activeOpacity={0.8}
+              onPress={onClose}
+            >
               <Text style={styles.closeIcon}>✕</Text>
             </TouchableOpacity>
 
-            <View style={[styles.categoryTag, { backgroundColor: categoryStyle.bg }]}>
-              <Text style={[styles.categoryTagText, { color: categoryStyle.text }]}>
+            <View
+              style={[
+                styles.categoryTag,
+                { backgroundColor: categoryStyle.bg },
+              ]}
+            >
+              <Text
+                style={[styles.categoryTagText, { color: categoryStyle.text }]}
+              >
                 {event.category}
               </Text>
             </View>

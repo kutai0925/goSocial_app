@@ -17,32 +17,56 @@ import { useAuth } from "../context/AuthContext";
 import { getUser } from "../api/users";
 
 const EVENT_IMAGES = {
-  party1: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&h=600&fit=crop",
-  party2: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=600&fit=crop",
-  party3: "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=800&h=600&fit=crop",
-  food1: "https://images.unsplash.com/photo-1533777857889-4be7c70b33f7?w=800&h=600&fit=crop",
-  food2: "https://images.unsplash.com/photo-1608270586620-248524c67de9?w=800&h=600&fit=crop",
-  food3: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop",
-  blue1: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=800&h=600&fit=crop",
-  blue2: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800&h=600&fit=crop",
-  blue3: "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800&h=600&fit=crop",
-  purple1: "https://images.unsplash.com/photo-1531058020387-3be344556be6?w=800&h=600&fit=crop",
-  purple2: "https://images.unsplash.com/photo-1499781350541-7783f6c6a0c8?w=800&h=600&fit=crop",
-  yellow1: "https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=800&h=600&fit=crop",
-  yellow2: "https://images.unsplash.com/photo-1543269865-cbf427effbad?w=800&h=600&fit=crop",
-  yellow3: "https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=800&h=600&fit=crop",
+  party1:
+    "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&h=600&fit=crop",
+  party2:
+    "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=600&fit=crop",
+  party3:
+    "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=800&h=600&fit=crop",
+  food1:
+    "https://images.unsplash.com/photo-1533777857889-4be7c70b33f7?w=800&h=600&fit=crop",
+  food2:
+    "https://images.unsplash.com/photo-1608270586620-248524c67de9?w=800&h=600&fit=crop",
+  food3:
+    "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop",
+  blue1:
+    "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=800&h=600&fit=crop",
+  blue2:
+    "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800&h=600&fit=crop",
+  blue3:
+    "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800&h=600&fit=crop",
+  purple1:
+    "https://images.unsplash.com/photo-1531058020387-3be344556be6?w=800&h=600&fit=crop",
+  purple2:
+    "https://images.unsplash.com/photo-1499781350541-7783f6c6a0c8?w=800&h=600&fit=crop",
+  yellow1:
+    "https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=800&h=600&fit=crop",
+  yellow2:
+    "https://images.unsplash.com/photo-1543269865-cbf427effbad?w=800&h=600&fit=crop",
+  yellow3:
+    "https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=800&h=600&fit=crop",
 };
 
 function EventImage({ event, style, fallbackTextStyle, failed, onError }) {
   const categoryStyle = getCategoryStyle(event.category);
 
   if (event.imageUrl && !failed) {
-    return <Image source={{ uri: event.imageUrl }} style={style} onError={onError} />;
+    return (
+      <Image source={{ uri: event.imageUrl }} style={style} onError={onError} />
+    );
   }
 
   return (
-    <View style={[style, styles.imageFallback, { backgroundColor: categoryStyle.bg }]}>
-      <Text style={[fallbackTextStyle, { color: categoryStyle.text }]}>{event.category[0]}</Text>
+    <View
+      style={[
+        style,
+        styles.imageFallback,
+        { backgroundColor: categoryStyle.bg },
+      ]}
+    >
+      <Text style={[fallbackTextStyle, { color: categoryStyle.text }]}>
+        {event.category[0]}
+      </Text>
     </View>
   );
 }
@@ -73,7 +97,7 @@ export default function DiscoverEventScreen() {
   useEffect(() => {
     async function loadEvents() {
       try {
-        const formatted = eventsData.map(e => ({
+        const formatted = eventsData.map((e) => ({
           ...e,
           locationName: e.locationName || e.location_name,
           imageUrl: EVENT_IMAGES[e.id] || null,
@@ -88,7 +112,11 @@ export default function DiscoverEventScreen() {
     loadEvents();
   }, []);
 
-  const featuredEvents = events.filter((event) => event.time.startsWith("Tonight") || event.time.toLowerCase().includes("tonight"));
+  const featuredEvents = events.filter(
+    (event) =>
+      event.time.startsWith("Tonight") ||
+      event.time.toLowerCase().includes("tonight"),
+  );
 
   const query = searchQuery.trim().toLowerCase();
   const filteredEvents = events.filter((event) => {
@@ -100,7 +128,6 @@ export default function DiscoverEventScreen() {
     );
   });
 
-
   const markImageFailed = (id) => {
     setFailedImages((prev) => ({ ...prev, [id]: true }));
   };
@@ -109,18 +136,39 @@ export default function DiscoverEventScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.headerRow}>
           <View style={styles.headerTitleRow}>
             <Text style={styles.headerTitle}>Discover</Text>
             <View style={styles.headerDot} />
           </View>
           {currentUser && currentUser.profile_image ? (
-            <Image source={{ uri: currentUser.profile_image }} style={styles.headerAvatar} />
+            <Image
+              source={{ uri: currentUser.profile_image }}
+              style={styles.headerAvatar}
+            />
           ) : (
-            <View style={[styles.headerAvatar, { backgroundColor: "#8F4CC7", alignItems: "center", justifyContent: "center" }]}>
-              <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 18 }}>
-                {currentUser && currentUser.first_name ? currentUser.first_name.charAt(0).toUpperCase() : (currentUser && currentUser.username ? currentUser.username.charAt(0).toUpperCase() : "")}
+            <View
+              style={[
+                styles.headerAvatar,
+                {
+                  backgroundColor: "#8F4CC7",
+                  alignItems: "center",
+                  justifyContent: "center",
+                },
+              ]}
+            >
+              <Text
+                style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 18 }}
+              >
+                {currentUser && currentUser.first_name
+                  ? currentUser.first_name.charAt(0).toUpperCase()
+                  : currentUser && currentUser.username
+                    ? currentUser.username.charAt(0).toUpperCase()
+                    : ""}
               </Text>
             </View>
           )}
@@ -164,8 +212,18 @@ export default function DiscoverEventScreen() {
                   failed={failedImages[event.id]}
                   onError={() => markImageFailed(event.id)}
                 />
-                <View style={[styles.carouselBadge, { backgroundColor: categoryStyle.bg }]}>
-                  <Text style={[styles.carouselBadgeText, { color: categoryStyle.text }]}>
+                <View
+                  style={[
+                    styles.carouselBadge,
+                    { backgroundColor: categoryStyle.bg },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.carouselBadgeText,
+                      { color: categoryStyle.text },
+                    ]}
+                  >
                     {event.category}
                   </Text>
                 </View>
@@ -183,8 +241,18 @@ export default function DiscoverEventScreen() {
             return (
               <View key={event.id} style={styles.feedItem}>
                 <View style={styles.feedHeaderRow}>
-                  <View style={[styles.feedAvatar, { backgroundColor: categoryStyle.bg }]}>
-                    <Text style={[styles.feedAvatarText, { color: categoryStyle.text }]}>
+                  <View
+                    style={[
+                      styles.feedAvatar,
+                      { backgroundColor: categoryStyle.bg },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.feedAvatarText,
+                        { color: categoryStyle.text },
+                      ]}
+                    >
                       {event.category[0]}
                     </Text>
                   </View>
@@ -196,7 +264,10 @@ export default function DiscoverEventScreen() {
                   </View>
                 </View>
 
-                <TouchableOpacity activeOpacity={0.9} onPress={() => setSelectedEvent(event)}>
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={() => setSelectedEvent(event)}
+                >
                   <EventImage
                     event={event}
                     style={styles.feedImage}
@@ -212,13 +283,18 @@ export default function DiscoverEventScreen() {
           })}
 
           {filteredEvents.length === 0 && (
-            <Text style={styles.emptyText}>No events match "{searchQuery}"</Text>
+            <Text style={styles.emptyText}>
+              No events match "{searchQuery}"
+            </Text>
           )}
         </View>
       </ScrollView>
 
       {selectedEvent && (
-        <EventSummaryScreen event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+        <EventSummaryScreen
+          event={selectedEvent}
+          onClose={() => setSelectedEvent(null)}
+        />
       )}
     </View>
   );

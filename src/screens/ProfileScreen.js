@@ -18,7 +18,8 @@ import Avatar from "../components/Avatar";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_GAP = 2;
 const GRID_COLUMNS = 3;
-const GRID_ITEM_SIZE = (SCREEN_WIDTH - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
+const GRID_ITEM_SIZE =
+  (SCREEN_WIDTH - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
 
 const GRID_PHOTOS = [
   "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=400&fit=crop",
@@ -80,7 +81,12 @@ export default function ProfileScreen({ route, navigation, onClose }) {
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+      <View
+        style={[
+          styles.container,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
         <ActivityIndicator size="large" color="#FFFFFF" />
       </View>
     );
@@ -90,13 +96,22 @@ export default function ProfileScreen({ route, navigation, onClose }) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.header}>
-          <TouchableOpacity style={styles.menuButton} onPress={() => {
-            if (onClose) onClose();
-            else if (navigation && navigation.canGoBack()) navigation.goBack();
-          }}>
-            <Text style={styles.menuIcon}>{onClose || (navigation && navigation.canGoBack()) ? "↓" : "☰"}</Text>
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => {
+              if (onClose) onClose();
+              else if (navigation && navigation.canGoBack())
+                navigation.goBack();
+            }}
+          >
+            <Text style={styles.menuIcon}>
+              {onClose || (navigation && navigation.canGoBack()) ? "↓" : "☰"}
+            </Text>
           </TouchableOpacity>
 
           <View style={styles.profileRow}>
@@ -110,7 +125,8 @@ export default function ProfileScreen({ route, navigation, onClose }) {
 
             <View style={styles.profileInfo}>
               <Text style={styles.name}>
-                {profile.firstName} <Text style={styles.nameBold}>{profile.lastName}</Text>
+                {profile.firstName}{" "}
+                <Text style={styles.nameBold}>{profile.lastName}</Text>
               </Text>
               <Text style={styles.location}>{profile.location}</Text>
               <Text style={styles.bio}>{profile.bio}</Text>

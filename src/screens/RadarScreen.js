@@ -21,7 +21,11 @@ import ChatPopup from "../components/ChatPopup";
 import ProfileScreen from "./ProfileScreen";
 import { useAuth } from "../context/AuthContext";
 import Avatar from "../components/Avatar";
-import { setLocation as setBackendLocation, getNearbyUsers, getUser } from "../api/users";
+import {
+  setLocation as setBackendLocation,
+  getNearbyUsers,
+  getUser,
+} from "../api/users";
 import { sendMessage, getMessages } from "../api/messages";
 import { WS_BASE_URL } from "../api/config";
 
@@ -40,18 +44,16 @@ const CIRCLE_COLORS = [
   "rgba(219, 165, 255, 0.65)",
 ];
 
-
-
 const generateBackendDots = (users, currentUserId, userLat, userLon) => {
   const list = [];
-  users.forEach(u => {
+  users.forEach((u) => {
     if (u.user_id === currentUserId) return;
     if (!u.coordinates) return;
 
     const dLat = u.coordinates.lat - userLat;
     const userLatRad = (userLat * Math.PI) / 180;
     const dLon = (u.coordinates.lon - userLon) * Math.cos(userLatRad);
-    
+
     const MAX_RANGE_DEG = 0.0045; // 500m
     const scale = 215 / MAX_RANGE_DEG;
 
@@ -59,7 +61,7 @@ const generateBackendDots = (users, currentUserId, userLat, userLon) => {
     let y = -dLat * scale; // Note: -y because y axis goes down in UI
 
     let r = Math.sqrt(x * x + y * y);
-    
+
     const distanceMeters = Math.round((r / 215) * 500); // Calculate real distance before visual pushout
 
     // If users are perfectly overlapping (like on emulators) or too close to the center avatar, push them out randomly
@@ -86,7 +88,7 @@ const generateBackendDots = (users, currentUserId, userLat, userLon) => {
         distanceMeters,
         isFriend: u.relationship === "accepted",
         relationship: u.relationship || "none",
-        isTopHalf
+        isTopHalf,
       });
     }
   });
@@ -152,7 +154,7 @@ export default function RadarScreen({ navigation }) {
     // 1. Load user location and populate dynamic dots relative to it
     const loadLocationAndDots = async () => {
       let lat = 48.1351; // Munich default
-      let lon = 11.5820;
+      let lon = 11.582;
       try {
         const cached = await AsyncStorage.getItem("user_cached_location");
         if (cached) {
@@ -165,7 +167,7 @@ export default function RadarScreen({ navigation }) {
       }
       if (isMounted.current) {
         setUserCoords({ latitude: lat, longitude: lon });
-        
+
         // Fetch real users and combine with mock dots
         let backendDots = [];
         try {
@@ -175,7 +177,7 @@ export default function RadarScreen({ navigation }) {
               try {
                 await setBackendLocation(userId, { lat, lon, accuracy: 10 });
                 hasSyncedLocation.current = true;
-              } catch(e) {
+              } catch (e) {
                 console.log("Failed to sync radar location:", e);
               }
             }
@@ -204,31 +206,51 @@ export default function RadarScreen({ navigation }) {
       ws.onmessage = (e) => {
         try {
           const payload = JSON.parse(e.data);
-          if (payload.event === "WAVE_UPDATE" || payload.event === "LOCATION_UPDATE") {
+          if (
+            payload.event === "WAVE_UPDATE" ||
+            payload.event === "LOCATION_UPDATE"
+          ) {
             loadLocationAndDots();
           } else if (payload.message) {
             const m = payload.message;
-            setActiveChat(prev => {
-              if (prev && (prev.user_id === m.from_user_id || prev.user_id === m.to_user_id)) {
+            setActiveChat((prev) => {
+              if (
+                prev &&
+                (prev.user_id === m.from_user_id ||
+                  prev.user_id === m.to_user_id)
+              ) {
                 // The backend sends `id: 0` for all broadcasted messages, so we cannot use it for deduplication.
                 // We use timestamp + message content to deduplicate, and assign a unique ID if it's 0.
                 const isFromMe = m.from_user_id === userId;
-                const exists = prev.messages.some(existing => 
-                  (existing.text === m.message && existing.timestamp === new Date(m.timestamp).getTime()) || 
-                  (existing.text === m.message && existing.fromMe && isFromMe)
+                const exists = prev.messages.some(
+                  (existing) =>
+                    (existing.text === m.message &&
+                      existing.timestamp === new Date(m.timestamp).getTime()) ||
+                    (existing.text === m.message &&
+                      existing.fromMe &&
+                      isFromMe),
                 );
-                
+
                 if (exists) return prev;
-                
+
                 return {
                   ...prev,
-                  messages: [...prev.messages, {
-                    id: (m.id && m.id !== 0 && m.id !== "0") ? m.id.toString() : (m.timestamp + Math.random().toString()),
-                    text: m.message,
-                    time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    fromMe: m.from_user_id === userId,
-                    timestamp: new Date(m.timestamp).getTime()
-                  }].sort((a, b) => a.timestamp - b.timestamp)
+                  messages: [
+                    ...prev.messages,
+                    {
+                      id:
+                        m.id && m.id !== 0 && m.id !== "0"
+                          ? m.id.toString()
+                          : m.timestamp + Math.random().toString(),
+                      text: m.message,
+                      time: new Date(m.timestamp).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }),
+                      fromMe: m.from_user_id === userId,
+                      timestamp: new Date(m.timestamp).getTime(),
+                    },
+                  ].sort((a, b) => a.timestamp - b.timestamp),
                 };
               }
               return prev;
@@ -276,8 +298,8 @@ export default function RadarScreen({ navigation }) {
               toValue: 1,
               duration: 400,
               useNativeDriver: true,
-            })
-          )
+            }),
+          ),
         ).start();
       });
     });
@@ -295,7 +317,7 @@ export default function RadarScreen({ navigation }) {
           duration: 1200,
           useNativeDriver: true,
         }),
-      ])
+      ]),
     ).start();
 
     // Cleanup resources on unmount
@@ -331,7 +353,12 @@ export default function RadarScreen({ navigation }) {
 
       // 3. Shortest-path angular interpolation to avoid wrap-around jumps (mod 360 transition)
       let diff = rawAngle - (currentAngleRef.current % 360);
-      diff = Math.atan2(Math.sin((diff * Math.PI) / 180), Math.cos((diff * Math.PI) / 180)) * (180 / Math.PI);
+      diff =
+        Math.atan2(
+          Math.sin((diff * Math.PI) / 180),
+          Math.cos((diff * Math.PI) / 180),
+        ) *
+        (180 / Math.PI);
 
       const targetAngle = currentAngleRef.current + diff;
       currentAngleRef.current = targetAngle;
@@ -339,7 +366,7 @@ export default function RadarScreen({ navigation }) {
       // 4. Spring animation to target angle with damping
       Animated.spring(rotationAnim, {
         toValue: targetAngle,
-        tension: 20,  // Lower tension for inertia feel
+        tension: 20, // Lower tension for inertia feel
         friction: 12, // High friction to prevent spring overshoot oscillations
         useNativeDriver: true,
       }).start();
@@ -356,7 +383,7 @@ export default function RadarScreen({ navigation }) {
 
   const triggerPulseWave = () => {
     // Reset scales to 1 first
-    circleScales.forEach(scale => scale.setValue(1));
+    circleScales.forEach((scale) => scale.setValue(1));
 
     // Staggered timing/spring animation to propagate waves outward
     Animated.stagger(
@@ -374,8 +401,8 @@ export default function RadarScreen({ navigation }) {
             friction: 6,
             useNativeDriver: true,
           }),
-        ])
-      )
+        ]),
+      ),
     ).start();
   };
 
@@ -428,7 +455,7 @@ export default function RadarScreen({ navigation }) {
           shouldPlay: false, // Load paused
           isLooping: true,
           volume: 0, // Start at 0 volume for smooth fade-in
-        }
+        },
       );
 
       // Abort if unmounted during network/disk loading time
@@ -519,7 +546,7 @@ export default function RadarScreen({ navigation }) {
     }
     if (soundRef.current) {
       soundRef.current.setOnPlaybackStatusUpdate(null);
-      soundRef.current.unloadAsync().catch(() => { });
+      soundRef.current.unloadAsync().catch(() => {});
       soundRef.current = null;
     }
   };
@@ -547,7 +574,7 @@ export default function RadarScreen({ navigation }) {
           toValue: 0,
           duration: 250,
           useNativeDriver: true,
-        })
+        }),
       ),
     ]).start(() => {
       // 3. Shrink the reveal circle back down to the center button location
@@ -582,13 +609,18 @@ export default function RadarScreen({ navigation }) {
       const msgList = await getMessages(userId);
       // Filter messages between currentUser and this dot
       const chatHistory = msgList
-        .filter(m => m.from_user_id === dot.user_id || m.to_user_id === dot.user_id)
-        .map(m => ({
+        .filter(
+          (m) => m.from_user_id === dot.user_id || m.to_user_id === dot.user_id,
+        )
+        .map((m) => ({
           id: m.id.toString(),
           text: m.message,
-          time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          time: new Date(m.timestamp).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
           fromMe: m.from_user_id === userId,
-          timestamp: new Date(m.timestamp).getTime()
+          timestamp: new Date(m.timestamp).getTime(),
         }))
         .sort((a, b) => a.timestamp - b.timestamp);
 
@@ -610,12 +642,26 @@ export default function RadarScreen({ navigation }) {
   };
 
   const handleSendWave = async (dot) => {
-    if (!userId || !dot.user_id || dot.user_id.startsWith("anon_") || dot.user_id.startsWith("friend")) return;
+    if (
+      !userId ||
+      !dot.user_id ||
+      dot.user_id.startsWith("anon_") ||
+      dot.user_id.startsWith("friend")
+    )
+      return;
     try {
       // Optimistically update UI
-      setDots(prev => prev.map(d => d.user_id === dot.user_id ? { ...d, relationship: "sent" } : d));
-      setSelectedDot(prev => prev && prev.user_id === dot.user_id ? { ...prev, relationship: "sent" } : prev);
-      
+      setDots((prev) =>
+        prev.map((d) =>
+          d.user_id === dot.user_id ? { ...d, relationship: "sent" } : d,
+        ),
+      );
+      setSelectedDot((prev) =>
+        prev && prev.user_id === dot.user_id
+          ? { ...prev, relationship: "sent" }
+          : prev,
+      );
+
       const { sendWave } = require("../api/users");
       await sendWave(userId, dot.user_id);
     } catch (err) {
@@ -626,8 +672,18 @@ export default function RadarScreen({ navigation }) {
   const handleAcceptWave = async (dot) => {
     if (!userId || !dot.user_id) return;
     try {
-      setDots(prev => prev.map(d => d.user_id === dot.user_id ? { ...d, isFriend: true, relationship: "accepted" } : d));
-      setSelectedDot(prev => prev && prev.user_id === dot.user_id ? { ...prev, isFriend: true, relationship: "accepted" } : prev);
+      setDots((prev) =>
+        prev.map((d) =>
+          d.user_id === dot.user_id
+            ? { ...d, isFriend: true, relationship: "accepted" }
+            : d,
+        ),
+      );
+      setSelectedDot((prev) =>
+        prev && prev.user_id === dot.user_id
+          ? { ...prev, isFriend: true, relationship: "accepted" }
+          : prev,
+      );
 
       const { acceptWave } = require("../api/users");
       await acceptWave(userId, dot.user_id);
@@ -642,9 +698,12 @@ export default function RadarScreen({ navigation }) {
 
   const sendChatPopupMessage = async (text) => {
     if (!activeChat || !userId) return;
-    
+
     try {
-      await sendMessage(userId, { message: text, toUserId: activeChat.user_id });
+      await sendMessage(userId, {
+        message: text,
+        toUserId: activeChat.user_id,
+      });
       // Optimistically add to UI
       setActiveChat((prev) =>
         prev
@@ -652,16 +711,19 @@ export default function RadarScreen({ navigation }) {
               ...prev,
               messages: [
                 ...prev.messages,
-                { 
-                  id: Date.now().toString(), 
-                  text, 
-                  time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+                {
+                  id: Date.now().toString(),
+                  text,
+                  time: new Date().toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
                   fromMe: true,
-                  timestamp: Date.now()
+                  timestamp: Date.now(),
                 },
               ],
             }
-          : prev
+          : prev,
       );
     } catch (e) {
       console.log("Failed to send popup message:", e);
@@ -717,7 +779,10 @@ export default function RadarScreen({ navigation }) {
           },
         ]}
       >
-        <Pressable style={StyleSheet.absoluteFillObject} onPress={handleBackgroundPress}>
+        <Pressable
+          style={StyleSheet.absoluteFillObject}
+          onPress={handleBackgroundPress}
+        >
           <LinearGradient
             colors={["#8F4CC7", "#130022"]}
             style={StyleSheet.absoluteFillObject}
@@ -764,8 +829,12 @@ export default function RadarScreen({ navigation }) {
               const isSelected = selectedDot?.user_id === dot.user_id;
               const hasSelection = selectedDot !== null;
 
-              const dotScale = isSelected ? 1.5 : (hasSelection ? 0.7 : pulseAnim);
-              const dotOpacity = isSelected ? 1.0 : (hasSelection ? 0.45 : 1.0);
+              const dotScale = isSelected
+                ? 1.5
+                : hasSelection
+                  ? 0.7
+                  : pulseAnim;
+              const dotOpacity = isSelected ? 1.0 : hasSelection ? 0.45 : 1.0;
 
               return (
                 <Animated.View
@@ -774,7 +843,10 @@ export default function RadarScreen({ navigation }) {
                     getDotStyle(dot.x, dot.y, dot.size),
                     {
                       opacity: dotOpacity,
-                      transform: [{ scale: dotScale }, { rotate: inverseRotationInterpolate }],
+                      transform: [
+                        { scale: dotScale },
+                        { rotate: inverseRotationInterpolate },
+                      ],
                     },
                   ]}
                 >
@@ -791,14 +863,18 @@ export default function RadarScreen({ navigation }) {
                         size={44}
                         style={[
                           styles.friendAvatar,
-                          { borderColor: isSelected ? "#FF2E93" : "#FFFFFF" }
+                          { borderColor: isSelected ? "#FF2E93" : "#FFFFFF" },
                         ]}
                       />
                     ) : (
                       <View
                         style={[
                           styles.innerDot,
-                          { backgroundColor: dot.isTopHalf ? "#8F4CC7" : "#000000" }
+                          {
+                            backgroundColor: dot.isTopHalf
+                              ? "#8F4CC7"
+                              : "#000000",
+                          },
                         ]}
                       />
                     )}
@@ -817,15 +893,33 @@ export default function RadarScreen({ navigation }) {
               },
             ]}
           >
-            <TouchableOpacity activeOpacity={0.85} onPress={() => setShowProfile(true)}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => setShowProfile(true)}
+            >
               {currentUserImage ? (
                 <Image
                   source={{ uri: currentUserImage }}
                   style={styles.avatarImage}
                 />
               ) : (
-                <View style={[styles.avatarImage, { backgroundColor: "#8F4CC7", alignItems: "center", justifyContent: "center" }]}>
-                  <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 24 }}>
+                <View
+                  style={[
+                    styles.avatarImage,
+                    {
+                      backgroundColor: "#8F4CC7",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontWeight: "bold",
+                      fontSize: 24,
+                    }}
+                  >
                     {username ? username.charAt(0).toUpperCase() : ""}
                   </Text>
                 </View>
@@ -837,14 +931,14 @@ export default function RadarScreen({ navigation }) {
         {/* Selected Dot Glassmorphic Details Card */}
         {selectedDot && (
           <View style={styles.detailsCard}>
-            <TouchableOpacity 
-              activeOpacity={selectedDot.isFriend ? 0.8 : 1} 
+            <TouchableOpacity
+              activeOpacity={selectedDot.isFriend ? 0.8 : 1}
               onPress={() => {
                 if (selectedDot.isFriend) {
                   setSelectedProfileUserId(selectedDot.user_id);
                 }
               }}
-              style={{flexDirection: 'row', alignItems: 'center', flex: 1}}
+              style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
               disabled={!selectedDot.isFriend}
             >
               {selectedDot.profile_pic_url ? (
@@ -853,9 +947,26 @@ export default function RadarScreen({ navigation }) {
                   style={styles.cardAvatar}
                 />
               ) : (
-                <View style={[styles.cardAvatar, { backgroundColor: "#8F4CC7", alignItems: "center", justifyContent: "center" }]}>
-                  <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 20 }}>
-                    {selectedDot.username ? selectedDot.username.charAt(0).toUpperCase() : ""}
+                <View
+                  style={[
+                    styles.cardAvatar,
+                    {
+                      backgroundColor: "#8F4CC7",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontWeight: "bold",
+                      fontSize: 20,
+                    }}
+                  >
+                    {selectedDot.username
+                      ? selectedDot.username.charAt(0).toUpperCase()
+                      : ""}
                   </Text>
                 </View>
               )}
@@ -865,7 +976,8 @@ export default function RadarScreen({ navigation }) {
                   {selectedDot.username || "Mystery User"}
                 </Text>
                 <Text style={styles.cardSubtitle} numberOfLines={1}>
-                  {selectedDot.distanceMeters}m • {selectedDot.isFriend ? "Friend" : "Nearby"}
+                  {selectedDot.distanceMeters}m •{" "}
+                  {selectedDot.isFriend ? "Friend" : "Nearby"}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -879,15 +991,26 @@ export default function RadarScreen({ navigation }) {
                 <Text style={styles.cardButtonText}>Say Hello</Text>
               </TouchableOpacity>
             ) : selectedDot.relationship === "sent" ? (
-              <TouchableOpacity style={[styles.cardAnonButton, { opacity: 0.5 }]} disabled>
+              <TouchableOpacity
+                style={[styles.cardAnonButton, { opacity: 0.5 }]}
+                disabled
+              >
                 <Text style={styles.cardAnonButtonText}>Wave Sent</Text>
               </TouchableOpacity>
             ) : selectedDot.relationship === "received" ? (
-              <TouchableOpacity style={[styles.cardAnonButton, { backgroundColor: "#FF2E93" }]} activeOpacity={0.8} onPress={() => handleAcceptWave(selectedDot)}>
+              <TouchableOpacity
+                style={[styles.cardAnonButton, { backgroundColor: "#FF2E93" }]}
+                activeOpacity={0.8}
+                onPress={() => handleAcceptWave(selectedDot)}
+              >
                 <Text style={styles.cardAnonButtonText}>Accept Wave</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={styles.cardAnonButton} activeOpacity={0.8} onPress={() => handleSendWave(selectedDot)}>
+              <TouchableOpacity
+                style={styles.cardAnonButton}
+                activeOpacity={0.8}
+                onPress={() => handleSendWave(selectedDot)}
+              >
                 <Text style={styles.cardAnonButtonText}>Send Wave</Text>
               </TouchableOpacity>
             )}

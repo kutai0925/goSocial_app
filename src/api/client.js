@@ -18,7 +18,10 @@ export async function apiRequest(path, { method = "GET", body } = {}) {
   });
 
   if (!response.ok) {
-    throw new ApiError(response.status, `${method} ${path} failed with status ${response.status}`);
+    throw new ApiError(
+      response.status,
+      `${method} ${path} failed with status ${response.status}`,
+    );
   }
 
   const text = await response.text();

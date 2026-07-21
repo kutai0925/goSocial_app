@@ -23,13 +23,16 @@ export default function LoginScreen({ navigation }) {
 
   const handleLogin = async () => {
     if (!usernameOrEmail.trim() || !password) {
-      Alert.alert("Missing info", "Please enter your username/email and password.");
+      Alert.alert(
+        "Missing info",
+        "Please enter your username/email and password.",
+      );
       return;
     }
     if (!isValidUsernameOrEmail(usernameOrEmail)) {
       Alert.alert(
         "Invalid username or email",
-        "Enter a valid email address, or a username with 3-20 letters, numbers, or underscores."
+        "Enter a valid email address, or a username with 3-20 letters, numbers, or underscores.",
       );
       return;
     }

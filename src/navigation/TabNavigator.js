@@ -1,13 +1,13 @@
-import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, StyleSheet } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React from "react";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { View, StyleSheet } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 
-import MapScreen from '../screens/MapScreen';
-import ChatScreen from '../screens/ChatScreen';
-import DiscoverEventScreen from '../screens/DiscoverEventScreen';
-import ProfileScreen from '../screens/ProfileScreen';
-import BottomNavigation from '../components/BottomNavigation';
+import MapScreen from "../screens/MapScreen";
+import ChatScreen from "../screens/ChatScreen";
+import DiscoverEventScreen from "../screens/DiscoverEventScreen";
+import ProfileScreen from "../screens/ProfileScreen";
+import BottomNavigation from "../components/BottomNavigation";
 
 const Tab = createBottomTabNavigator();
 
@@ -26,15 +26,15 @@ export default function TabNavigator() {
               activeScreen={activeName}
               hidePlusButton={false}
               onNavigate={(screenName) => {
-                if (screenName === 'radar') {
+                if (screenName === "radar") {
                   // Navigate to Radar using parent's navigation since it's in RootNavigator
-                  navigation.navigate('Radar');
+                  navigation.navigate("Radar");
                 } else {
                   const routeMap = {
-                    map: 'Map',
-                    chat: 'Chat',
-                    discover: 'Discover',
-                    profile: 'Profile'
+                    map: "Map",
+                    chat: "Chat",
+                    discover: "Discover",
+                    profile: "Profile",
                   };
                   // Navigate to tabs using the tab's navigation prop
                   props.navigation.navigate(routeMap[screenName]);
@@ -57,6 +57,6 @@ export default function TabNavigator() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
-  }
+    backgroundColor: "#000000",
+  },
 });

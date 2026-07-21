@@ -12,7 +12,11 @@ import {
   ScrollView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { isValidUsername, isValidEmail, isValidPassword } from "../utils/validation";
+import {
+  isValidUsername,
+  isValidEmail,
+  isValidPassword,
+} from "../utils/validation";
 
 import { useAuth } from "../context/AuthContext";
 
@@ -34,7 +38,7 @@ export default function SignUpScreen({ navigation }) {
     if (!isValidUsername(username)) {
       Alert.alert(
         "Invalid username",
-        "Username must be 3-20 characters and contain only letters, numbers, or underscores."
+        "Username must be 3-20 characters and contain only letters, numbers, or underscores.",
       );
       return;
     }
@@ -45,7 +49,7 @@ export default function SignUpScreen({ navigation }) {
     if (!isValidPassword(password)) {
       Alert.alert(
         "Weak password",
-        "Password must be at least 8 characters and include at least one letter and one number."
+        "Password must be at least 8 characters and include at least one letter and one number.",
       );
       return;
     }
@@ -54,9 +58,16 @@ export default function SignUpScreen({ navigation }) {
       return;
     }
     try {
-      await signupUser({ username: username.trim(), email: email.trim(), password });
+      await signupUser({
+        username: username.trim(),
+        email: email.trim(),
+        password,
+      });
     } catch (err) {
-      Alert.alert("Signup Failed", "That username or email may already be in use.");
+      Alert.alert(
+        "Signup Failed",
+        "That username or email may already be in use.",
+      );
     }
   };
 
@@ -73,7 +84,10 @@ export default function SignUpScreen({ navigation }) {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
             <Text style={styles.backButtonLabel}>{"‹ Back"}</Text>
           </TouchableOpacity>
 

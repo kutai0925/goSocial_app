@@ -30,34 +30,53 @@ const EmojiParticle = ({ id, onComplete }) => {
   useEffect(() => {
     const endY = -150 - Math.random() * 150;
     const endX = -100 + Math.random() * 200;
-    
+
     Animated.parallel([
-      Animated.timing(animY, { toValue: endY, duration: 800 + Math.random() * 400, useNativeDriver: true }),
-      Animated.timing(animX, { toValue: endX, duration: 800 + Math.random() * 400, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 0, duration: 800 + Math.random() * 400, useNativeDriver: true }),
-      Animated.timing(scale, { toValue: 1.5 + Math.random(), duration: 800, useNativeDriver: true }),
+      Animated.timing(animY, {
+        toValue: endY,
+        duration: 800 + Math.random() * 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(animX, {
+        toValue: endX,
+        duration: 800 + Math.random() * 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 800 + Math.random() * 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scale, {
+        toValue: 1.5 + Math.random(),
+        duration: 800,
+        useNativeDriver: true,
+      }),
     ]).start(() => onComplete(id));
   }, []);
 
   return (
-    <Animated.Text style={{
-      position: 'absolute',
-      left: SCREEN_WIDTH / 2 - 14, // Center horizontally
-      bottom: 60,
-      opacity,
-      transform: [{ translateX: animX }, { translateY: animY }, { scale }],
-      fontSize: 28,
-      zIndex: 1000
-    }}>
+    <Animated.Text
+      style={{
+        position: "absolute",
+        left: SCREEN_WIDTH / 2 - 14, // Center horizontally
+        bottom: 60,
+        opacity,
+        transform: [{ translateX: animX }, { translateY: animY }, { scale }],
+        fontSize: 28,
+        zIndex: 1000,
+      }}
+    >
       ☺
     </Animated.Text>
   );
 };
 
-
-
 import { useAuth } from "../context/AuthContext";
-import { getMessages, sendMessage as sendBackendMessage } from "../api/messages";
+import {
+  getMessages,
+  sendMessage as sendBackendMessage,
+} from "../api/messages";
 import { getNearbyUsers, acceptWave, declineWave } from "../api/users";
 import { WS_BASE_URL } from "../api/config";
 
@@ -76,7 +95,7 @@ export default function ChatScreen() {
   useFocusEffect(
     useCallback(() => {
       selectedChatIdRef.current = selectedChatId;
-      
+
       const onBackPress = () => {
         if (selectedChatIdRef.current) {
           setSelectedChatId(null);
@@ -85,9 +104,12 @@ export default function ChatScreen() {
         return false;
       };
 
-      const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress,
+      );
       return () => subscription.remove();
-    }, [selectedChatId])
+    }, [selectedChatId]),
   );
 
   useEffect(() => {
@@ -97,30 +119,34 @@ export default function ChatScreen() {
     newWs.onopen = () => {
       console.log("WebSocket connected");
     };
-      newWs.onmessage = (e) => {
-        try {
-          const payload = JSON.parse(e.data);
-          const m = payload.message;
-          if (!m) {
-            if (payload.event === "WAVE_UPDATE") {
-              fetchData();
-            }
-            return;
+    newWs.onmessage = (e) => {
+      try {
+        const payload = JSON.parse(e.data);
+        const m = payload.message;
+        if (!m) {
+          if (payload.event === "WAVE_UPDATE") {
+            fetchData();
           }
-        
-        setChatData(prevData => {
+          return;
+        }
+
+        setChatData((prevData) => {
           const newData = [...prevData];
           // Determine the other user in the chat
-          const otherId = m.to_user_id === userId ? m.from_user_id : m.to_user_id;
-          
-          let chatIndex = newData.findIndex(c => c.id === otherId);
+          const otherId =
+            m.to_user_id === userId ? m.from_user_id : m.to_user_id;
+
+          let chatIndex = newData.findIndex((c) => c.id === otherId);
           if (chatIndex === -1) {
             newData.push({
               id: otherId,
               name: "Unknown",
               avatar: null,
               lastMessage: m.message,
-              time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              time: new Date(m.timestamp).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
               unread: m.to_user_id === userId ? 1 : 0,
               online: true,
               messages: [],
@@ -129,42 +155,58 @@ export default function ChatScreen() {
           }
 
           const chat = { ...newData[chatIndex] };
-          
+
           // Check if message already exists
           const isFromMe = m.from_user_id === userId;
-          const exists = chat.messages.some(existing => 
-             (existing.text === m.message && existing.timestamp === new Date(m.timestamp).getTime()) || 
-             (existing.text === m.message && existing.fromMe && isFromMe)
-           );
-           
-           if (!exists) {
-              chat.messages = [...chat.messages, {
-                id: (m.id && m.id !== 0 && m.id !== "0") ? m.id.toString() : (m.timestamp + Math.random().toString()),
+          const exists = chat.messages.some(
+            (existing) =>
+              (existing.text === m.message &&
+                existing.timestamp === new Date(m.timestamp).getTime()) ||
+              (existing.text === m.message && existing.fromMe && isFromMe),
+          );
+
+          if (!exists) {
+            chat.messages = [
+              ...chat.messages,
+              {
+                id:
+                  m.id && m.id !== 0 && m.id !== "0"
+                    ? m.id.toString()
+                    : m.timestamp + Math.random().toString(),
                 text: m.message,
-                time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                time: new Date(m.timestamp).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
                 fromMe: m.from_user_id === userId,
-                timestamp: new Date(m.timestamp).getTime()
-              }].sort((a, b) => a.timestamp - b.timestamp);
-              chat.lastMessage = m.message;
-              chat.time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-              
-              if (m.to_user_id === userId && selectedChatIdRef.current !== otherId) {
-                chat.unread += 1;
-              }
-           }  
+                timestamp: new Date(m.timestamp).getTime(),
+              },
+            ].sort((a, b) => a.timestamp - b.timestamp);
+            chat.lastMessage = m.message;
+            chat.time = new Date(m.timestamp).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+
+            if (
+              m.to_user_id === userId &&
+              selectedChatIdRef.current !== otherId
+            ) {
+              chat.unread += 1;
+            }
+          }
           newData[chatIndex] = chat;
           return newData;
         });
-
       } catch (err) {
         console.log("Error parsing websocket message", err);
       }
     };
-    
+
     newWs.onerror = (e) => {
       console.log("WebSocket error", e.message);
     };
-    
+
     setWs(newWs);
 
     return () => {
@@ -179,18 +221,31 @@ export default function ChatScreen() {
       const msgList = await getMessages(userId);
 
       const uMap = {};
-      users.forEach(u => uMap[u.user_id] = u.username);
+      users.forEach((u) => (uMap[u.user_id] = u.username));
 
       const groups = {};
 
       // Only add users who have a mutual or pending relationship
-      users.forEach(u => {
-        if (u.user_id !== userId && (u.relationship === "accepted" || u.relationship === "received" || u.relationship === "sent")) {
+      users.forEach((u) => {
+        if (
+          u.user_id !== userId &&
+          (u.relationship === "accepted" ||
+            u.relationship === "received" ||
+            u.relationship === "sent")
+        ) {
           groups[u.user_id] = {
             id: u.user_id,
-            name: u.relationship === "accepted" ? (u.username || "Unknown") : "Anonymous User",
+            name:
+              u.relationship === "accepted"
+                ? u.username || "Unknown"
+                : "Anonymous User",
             avatar: u.profile_image || null,
-            lastMessage: u.relationship === "received" ? "Waved at you!" : u.relationship === "sent" ? "Wave sent" : "Start a conversation",
+            lastMessage:
+              u.relationship === "received"
+                ? "Waved at you!"
+                : u.relationship === "sent"
+                  ? "Wave sent"
+                  : "Start a conversation",
             time: "",
             unread: u.relationship === "received" ? 1 : 0,
             online: true,
@@ -201,15 +256,19 @@ export default function ChatScreen() {
       });
 
       // Add actual messages
-      msgList.forEach(m => {
-        const otherId = m.from_user_id === userId ? m.to_user_id : m.from_user_id;
+      msgList.forEach((m) => {
+        const otherId =
+          m.from_user_id === userId ? m.to_user_id : m.from_user_id;
         if (!groups[otherId]) {
           groups[otherId] = {
             id: otherId,
             name: uMap[otherId] || "Unknown",
             avatar: null,
             lastMessage: m.message,
-            time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            time: new Date(m.timestamp).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
             unread: 0,
             online: true,
             messages: [],
@@ -218,21 +277,26 @@ export default function ChatScreen() {
         groups[otherId].messages.push({
           id: m.id || m.timestamp + Math.random().toString(),
           text: m.message,
-          time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          time: new Date(m.timestamp).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
           fromMe: !m.received,
-          timestamp: new Date(m.timestamp).getTime()
+          timestamp: new Date(m.timestamp).getTime(),
         });
 
         groups[otherId].lastMessage = m.message;
-        groups[otherId].time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        groups[otherId].time = new Date(m.timestamp).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
       });
 
-      Object.values(groups).forEach(g => {
+      Object.values(groups).forEach((g) => {
         g.messages.sort((a, b) => a.timestamp - b.timestamp);
       });
 
       setChatData(Object.values(groups));
-
     } catch (e) {
       console.log("Error fetching chats", e);
     }
@@ -241,26 +305,24 @@ export default function ChatScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchData();
-    }, [userId])
+    }, [userId]),
   );
 
-
-
   const filteredChats = chatData.filter((chat) =>
-    chat.name.toLowerCase().includes(searchText.toLowerCase())
+    chat.name.toLowerCase().includes(searchText.toLowerCase()),
   );
 
   function openChat(chat) {
     setSelectedChatId(chat.id);
-    
+
     // Clear unread
-    setChatData(prev => {
-       const newData = [...prev];
-       const chatIndex = newData.findIndex(c => c.id === chat.id);
-       if (chatIndex !== -1) {
-          newData[chatIndex] = { ...newData[chatIndex], unread: 0 };
-       }
-       return newData;
+    setChatData((prev) => {
+      const newData = [...prev];
+      const chatIndex = newData.findIndex((c) => c.id === chat.id);
+      if (chatIndex !== -1) {
+        newData[chatIndex] = { ...newData[chatIndex], unread: 0 };
+      }
+      return newData;
     });
   }
 
@@ -279,24 +341,29 @@ export default function ChatScreen() {
       text: currentMessage,
       time: "Now",
       fromMe: true,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
     // Optimistic update BEFORE await
-    setChatData(prevChats => prevChats.map((chat) => {
-      if (chat.id === selectedChatId) {
-        return {
-          ...chat,
-          messages: [...chat.messages, newMessage],
-          lastMessage: currentMessage,
-          time: "Now",
-        };
-      }
-      return chat;
-    }));
+    setChatData((prevChats) =>
+      prevChats.map((chat) => {
+        if (chat.id === selectedChatId) {
+          return {
+            ...chat,
+            messages: [...chat.messages, newMessage],
+            lastMessage: currentMessage,
+            time: "Now",
+          };
+        }
+        return chat;
+      }),
+    );
 
     try {
-      await sendBackendMessage(userId, { message: currentMessage, toUserId: selectedChatId });
+      await sendBackendMessage(userId, {
+        message: currentMessage,
+        toUserId: selectedChatId,
+      });
     } catch (e) {
       console.log("Error sending msg", e);
     }
@@ -305,17 +372,31 @@ export default function ChatScreen() {
   const handleAcceptWave = async (chatId) => {
     try {
       await acceptWave(userId, chatId);
-      setChatData(prev => prev.map(c => c.id === chatId ? { ...c, relationship: "accepted", lastMessage: "Wave accepted! Say hi." } : c));
+      setChatData((prev) =>
+        prev.map((c) =>
+          c.id === chatId
+            ? {
+                ...c,
+                relationship: "accepted",
+                lastMessage: "Wave accepted! Say hi.",
+              }
+            : c,
+        ),
+      );
       await fetchData(); // Refresh data to get the real username
-    } catch(e) { console.log(e); }
+    } catch (e) {
+      console.log(e);
+    }
   };
 
   const handleDeclineWave = async (chatId) => {
     try {
       await declineWave(userId, chatId);
-      setChatData(prev => prev.filter(c => c.id !== chatId));
+      setChatData((prev) => prev.filter((c) => c.id !== chatId));
       setSelectedChatId(null);
-    } catch(e) { console.log(e); }
+    } catch (e) {
+      console.log(e);
+    }
   };
 
   if (selectedChat) {
@@ -328,7 +409,9 @@ export default function ChatScreen() {
         onSend={sendMessage}
         onAcceptWave={() => handleAcceptWave(selectedChat.id)}
         onDeclineWave={() => handleDeclineWave(selectedChat.id)}
-        onAvatarPress={() => navigation.navigate("UserProfile", { userId: selectedChat.id })}
+        onAvatarPress={() =>
+          navigation.navigate("UserProfile", { userId: selectedChat.id })
+        }
       />
     );
   }
@@ -366,7 +449,10 @@ export default function ChatScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.chatList}
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.chatItem} onPress={() => openChat(item)}>
+          <TouchableOpacity
+            style={styles.chatItem}
+            onPress={() => openChat(item)}
+          >
             <View style={styles.avatarWrapper}>
               <Avatar
                 url={item.avatar}
@@ -406,23 +492,31 @@ export default function ChatScreen() {
           </TouchableOpacity>
         )}
       />
-
     </SafeAreaView>
   );
 }
 
-const ChatDetailScreen = ({ chat, onBack, messageText, setMessageText, onSend, onAcceptWave, onDeclineWave, onAvatarPress }) => {
+const ChatDetailScreen = ({
+  chat,
+  onBack,
+  messageText,
+  setMessageText,
+  onSend,
+  onAcceptWave,
+  onDeclineWave,
+  onAvatarPress,
+}) => {
   const [particles, setParticles] = useState([]);
 
   const triggerExplosion = (count = 12) => {
     const newParticles = Array.from({ length: count }).map((_, i) => ({
-      id: Date.now().toString() + i + Math.random().toString()
+      id: Date.now().toString() + i + Math.random().toString(),
     }));
-    setParticles(prev => [...prev, ...newParticles]);
+    setParticles((prev) => [...prev, ...newParticles]);
   };
 
   const removeParticle = (id) => {
-    setParticles(prev => prev.filter(p => p.id !== id));
+    setParticles((prev) => prev.filter((p) => p.id !== id));
   };
 
   const scrollViewRef = useRef(null);
@@ -443,7 +537,7 @@ const ChatDetailScreen = ({ chat, onBack, messageText, setMessageText, onSend, o
   }, [chat.messages]);
 
   const handleEmojiPress = () => {
-    setMessageText(prev => prev + "☺");
+    setMessageText((prev) => prev + "☺");
   };
 
   return (
@@ -453,7 +547,10 @@ const ChatDetailScreen = ({ chat, onBack, messageText, setMessageText, onSend, o
           <Text style={styles.backText}>‹</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={{flexDirection: 'row', alignItems: 'center', flex: 1}} onPress={onAvatarPress}>
+        <TouchableOpacity
+          style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+          onPress={onAvatarPress}
+        >
           <Avatar
             url={chat.avatar}
             name={chat.name}
@@ -488,8 +585,11 @@ const ChatDetailScreen = ({ chat, onBack, messageText, setMessageText, onSend, o
           style={styles.messagesContainer}
           contentContainerStyle={styles.messagesContent}
           onScroll={(e) => {
-            const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-            isAtBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 40;
+            const { layoutMeasurement, contentOffset, contentSize } =
+              e.nativeEvent;
+            isAtBottom.current =
+              layoutMeasurement.height + contentOffset.y >=
+              contentSize.height - 40;
           }}
           scrollEventThrottle={16}
           onContentSizeChange={() => {
@@ -540,20 +640,31 @@ const ChatDetailScreen = ({ chat, onBack, messageText, setMessageText, onSend, o
 
         {chat.relationship === "received" ? (
           <View style={styles.waveActions}>
-            <TouchableOpacity style={[styles.waveBtn, styles.declineBtn]} onPress={onDeclineWave}>
-               <Text style={styles.waveBtnText}>Decline</Text>
+            <TouchableOpacity
+              style={[styles.waveBtn, styles.declineBtn]}
+              onPress={onDeclineWave}
+            >
+              <Text style={styles.waveBtnText}>Decline</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.waveBtn, styles.acceptBtn]} onPress={onAcceptWave}>
-               <Text style={styles.waveBtnText}>Wave Back</Text>
+            <TouchableOpacity
+              style={[styles.waveBtn, styles.acceptBtn]}
+              onPress={onAcceptWave}
+            >
+              <Text style={styles.waveBtnText}>Wave Back</Text>
             </TouchableOpacity>
           </View>
         ) : chat.relationship === "sent" ? (
           <View style={styles.wavePending}>
-            <Text style={styles.wavePendingText}>Waiting for them to wave back...</Text>
+            <Text style={styles.wavePendingText}>
+              Waiting for them to wave back...
+            </Text>
           </View>
         ) : (
           <View style={styles.inputBar}>
-            <TouchableOpacity style={styles.emojiButton} onPress={handleEmojiPress}>
+            <TouchableOpacity
+              style={styles.emojiButton}
+              onPress={handleEmojiPress}
+            >
               <Text style={styles.emojiText}>☺</Text>
             </TouchableOpacity>
             <TextInput
@@ -569,15 +680,15 @@ const ChatDetailScreen = ({ chat, onBack, messageText, setMessageText, onSend, o
             </TouchableOpacity>
           </View>
         )}
-        
+
         {/* Render Emoji Particles */}
-        {particles.map(p => (
+        {particles.map((p) => (
           <EmojiParticle key={p.id} id={p.id} onComplete={removeParticle} />
         ))}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {

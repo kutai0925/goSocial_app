@@ -27,7 +27,12 @@ export default function ChatPopup({ visible, friend, onClose, onSend }) {
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
       <View style={styles.overlay}>
         <KeyboardAvoidingView
           style={styles.sheet}
@@ -40,19 +45,24 @@ export default function ChatPopup({ visible, friend, onClose, onSend }) {
               size={38}
               style={styles.avatar}
             />
-            <Text style={styles.headerName}>{friend.username || "Mystery User"}</Text>
+            <Text style={styles.headerName}>
+              {friend.username || "Mystery User"}
+            </Text>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Text style={styles.closeIcon}>✕</Text>
             </TouchableOpacity>
           </View>
 
-          <ScrollView 
+          <ScrollView
             ref={scrollViewRef}
-            style={styles.messages} 
+            style={styles.messages}
             contentContainerStyle={styles.messagesContent}
             onScroll={(e) => {
-              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-              isAtBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 40;
+              const { layoutMeasurement, contentOffset, contentSize } =
+                e.nativeEvent;
+              isAtBottom.current =
+                layoutMeasurement.height + contentOffset.y >=
+                contentSize.height - 40;
             }}
             scrollEventThrottle={16}
             onContentSizeChange={() => {
@@ -67,7 +77,10 @@ export default function ChatPopup({ visible, friend, onClose, onSend }) {
             {friend.messages.map((m) => (
               <View
                 key={m.id}
-                style={[styles.bubble, m.fromMe ? styles.myBubble : styles.theirBubble]}
+                style={[
+                  styles.bubble,
+                  m.fromMe ? styles.myBubble : styles.theirBubble,
+                ]}
               >
                 <Text style={styles.bubbleText}>{m.text}</Text>
                 <Text style={styles.bubbleTime}>{m.time}</Text>

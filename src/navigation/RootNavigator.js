@@ -1,10 +1,10 @@
-import React from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useAuth } from '../context/AuthContext';
-import AuthNavigator from './AuthNavigator';
-import TabNavigator from './TabNavigator';
-import RadarScreen from '../screens/RadarScreen';
-import ProfileScreen from '../screens/ProfileScreen';
+import React from "react";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { useAuth } from "../context/AuthContext";
+import AuthNavigator from "./AuthNavigator";
+import TabNavigator from "./TabNavigator";
+import RadarScreen from "../screens/RadarScreen";
+import ProfileScreen from "../screens/ProfileScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -18,14 +18,11 @@ export default function RootNavigator() {
       {isAuthenticated ? (
         <>
           <Stack.Screen name="MainTabs" component={TabNavigator} />
-          <Stack.Screen 
-            name="Radar" 
-            component={RadarScreen} 
-          />
-          <Stack.Screen 
-            name="UserProfile" 
-            component={UserProfileWrapper} 
-            options={{ animation: 'slide_from_right' }}
+          <Stack.Screen name="Radar" component={RadarScreen} />
+          <Stack.Screen
+            name="UserProfile"
+            component={UserProfileWrapper}
+            options={{ animation: "slide_from_right" }}
           />
         </>
       ) : (
