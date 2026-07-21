@@ -383,9 +383,7 @@ async fn get_nearby_users(
         }
 
         if u.relationship.as_deref() != Some("accepted") && u.user_id.to_string() != "00000000-0000-0000-0000-000000000000" {
-            u.profile_image = None; // mask profile pic for anons
-            // keep username so the backend has a way to identify them internally or display 'Anonymous', 
-            // but the frontend can choose to mask it in UI
+            // User requested to display profile picture when available, so we no longer mask it
         }
 
         users.push(u);

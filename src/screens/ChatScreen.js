@@ -17,6 +17,7 @@ import {
   Dimensions,
   StatusBar,
 } from "react-native";
+import Avatar from "../components/Avatar";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -367,15 +368,12 @@ export default function ChatScreen() {
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.chatItem} onPress={() => openChat(item)}>
             <View style={styles.avatarWrapper}>
-              {item.avatar ? (
-                <Image source={{ uri: item.avatar }} style={styles.avatar} />
-              ) : (
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {item.name ? item.name.charAt(0).toUpperCase() : ""}
-                  </Text>
-                </View>
-              )}
+              <Avatar
+                url={item.avatar}
+                name={item.name}
+                size={56}
+                style={styles.avatar}
+              />
 
               {item.online && <View style={styles.onlineDot} />}
             </View>
@@ -456,15 +454,12 @@ const ChatDetailScreen = ({ chat, onBack, messageText, setMessageText, onSend, o
         </TouchableOpacity>
 
         <TouchableOpacity style={{flexDirection: 'row', alignItems: 'center', flex: 1}} onPress={onAvatarPress}>
-          {chat.avatar ? (
-            <Image source={{ uri: chat.avatar }} style={styles.detailAvatar} />
-          ) : (
-            <View style={styles.detailAvatar}>
-              <Text style={styles.avatarText}>
-                {chat.name ? chat.name.charAt(0).toUpperCase() : ""}
-              </Text>
-            </View>
-          )}
+          <Avatar
+            url={chat.avatar}
+            name={chat.name}
+            size={42}
+            style={styles.detailAvatar}
+          />
 
           <View style={styles.detailHeaderText}>
             <Text style={styles.detailName}>{chat.name}</Text>

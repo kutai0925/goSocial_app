@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   TextInput,
   Platform,
+  PixelRatio,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import MapView, { Marker } from "react-native-maps";
@@ -19,6 +20,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import eventsData from "../data/events.json";
 import { useAuth } from "../context/AuthContext";
 import { setLocation as setBackendLocation, getNearbyUsers } from "../api/users";
+import Avatar from "../components/Avatar";
+import Svg, { Image as SvgImage, Circle, Text as SvgText } from 'react-native-svg';
+import MarkerGenerator from "../components/MarkerGenerator";
 
 const CACHE_KEY = "user_cached_location";
 
@@ -31,10 +35,63 @@ const generateNearbyMarkers = (lat, lon) => {
   }));
 };
 
+import { Callout } from 'react-native-maps';
+
+const CustomUserMarker = ({ user, openEventPopup, iconUri }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const size = 60; // Slightly smaller to match event pins
+
+  if (!user) return null;
+
+  const cleanUrl = user.profile_image ? user.profile_image.replace(/\s+/g, '') : null;
+  const initial = user.username ? user.username.charAt(0).toUpperCase() : "?";
+
+  if (Platform.OS === 'android') {
+    // If the snapshot isn't ready yet, return null or a default marker
+    if (!iconUri) return null;
+
+    return (
+      <Marker
+        coordinate={{
+          latitude: user.coordinates?.lat || 0,
+          longitude: user.coordinates?.lon || 0,
+        }}
+        icon={{ uri: iconUri }}
+        anchor={{ x: 0.5, y: 0.5 }}
+      />
+    );
+  }
+
+  // iOS uses the custom view which works perfectly
+  return (
+    <Marker
+      coordinate={{
+        latitude: user.coordinates?.lat || 0,
+        longitude: user.coordinates?.lon || 0,
+      }}
+      tracksViewChanges={!isLoaded}
+    >
+      <View style={{ width: size, height: size, borderRadius: size / 2, borderWidth: 3, borderColor: "#FFFFFF", backgroundColor: "#8B4CC2", overflow: 'hidden', alignItems: "center", justifyContent: "center" }}>
+        {cleanUrl ? (
+          <Image 
+            source={{ uri: cleanUrl }} 
+            style={{ width: '100%', height: '100%' }} 
+            resizeMode="cover"
+            onLoad={() => setIsLoaded(true)}
+          />
+        ) : (
+          <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: size * 0.45 }}>{initial}</Text>
+        )}
+      </View>
+    </Marker>
+  );
+};
+
 export default function MapScreen() {
   const { userId } = useAuth();
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [location, setLocation] = useState(null);
+  const [generatedUserIcons, setGeneratedUserIcons] = useState({});
   const [region, setRegion] = useState(null);
   const [nearbyMarkers, setNearbyMarkers] = useState([]);
   const [realUsers, setRealUsers] = useState([]);
@@ -61,7 +118,7 @@ export default function MapScreen() {
       if (!userId) return;
       try {
         const users = await getNearbyUsers();
-        setRealUsers(users.filter(u => u.user_id !== userId));
+        setRealUsers(users);
       } catch (e) {
         console.log("Error fetching nearby users", e);
       }
@@ -206,32 +263,35 @@ export default function MapScreen() {
           <MapView
             style={styles.map}
             initialRegion={region}
-            showsUserLocation={true}
+            showsUserLocation={false}
             showsMyLocationButton={true}
           >
-            {filteredMarkers.map((marker) => (
+            {filteredMarkers.map((marker, index) => (
               <Marker
-                key={marker.id}
+                key={index}
                 coordinate={{
                   latitude: marker.latitude,
                   longitude: marker.longitude,
                 }}
-                image={getMarkerImage(marker.type)} // Render image natively to bypass React Native child layout bugs
                 onPress={() => openEventPopup(marker)}
-              />
+                icon={Platform.OS === 'android' ? getMarkerImage(marker.type) : undefined}
+              >
+                {Platform.OS !== 'android' && (
+                  <Image 
+                    source={getMarkerImage(marker.type)} 
+                    style={{ width: 45, height: 60 }} 
+                    resizeMode="contain" 
+                  />
+                )}
+              </Marker>
             ))}
             {realUsers.map((user) => (
-              <Marker
-                key={user.user_id}
-                coordinate={{
-                  latitude: user.coordinates?.lat || 0,
-                  longitude: user.coordinates?.lon || 0,
-                }}
-              >
-                <View style={styles.userMarker}>
-                  <Text style={styles.userMarkerText}>{user.username?.charAt(0)}</Text>
-                </View>
-              </Marker>
+              <CustomUserMarker 
+                key={`${user.user_id}-v3`} 
+                user={user} 
+                openEventPopup={openEventPopup} 
+                iconUri={generatedUserIcons[user.user_id]}
+              />
             ))}
           </MapView>
         ) : (
@@ -249,6 +309,13 @@ export default function MapScreen() {
           </View>
         )}
       </View>
+
+      {Platform.OS === 'android' && realUsers && realUsers.length > 0 && (
+        <MarkerGenerator 
+          users={realUsers} 
+          onImagesReady={setGeneratedUserIcons} 
+        />
+      )}
 
       <Modal
         visible={selectedEvent !== null}

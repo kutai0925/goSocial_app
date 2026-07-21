@@ -10,6 +10,8 @@ import {
   Text,
   Pressable,
   Modal,
+  Switch,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Magnetometer } from "expo-sensors";
@@ -18,6 +20,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import ChatPopup from "../components/ChatPopup";
 import ProfileScreen from "./ProfileScreen";
 import { useAuth } from "../context/AuthContext";
+import Avatar from "../components/Avatar";
 import { setLocation as setBackendLocation, getNearbyUsers, getUser } from "../api/users";
 import { sendMessage, getMessages } from "../api/messages";
 import { WS_BASE_URL } from "../api/config";
@@ -95,7 +98,6 @@ export default function RadarScreen({ navigation }) {
   const [selectedDot, setSelectedDot] = useState(null);
   const [dots, setDots] = useState([]);
   const [userCoords, setUserCoords] = useState(null);
-  const [failedImages, setFailedImages] = useState({});
   const [activeChat, setActiveChat] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [selectedProfileUserId, setSelectedProfileUserId] = useState(null);
@@ -782,33 +784,16 @@ export default function RadarScreen({ navigation }) {
                     style={styles.touchableDot}
                     hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }} // Expand touch bounds to 44x44+ for touch target compliance
                   >
-                    {dot.profile_pic_url && !failedImages[dot.user_id] ? (
-                      <Image
-                        source={{ uri: dot.profile_pic_url }}
-                        onError={() => {
-                          setFailedImages((prev) => ({ ...prev, [dot.user_id]: true }));
-                        }}
+                    {dot.isFriend ? (
+                      <Avatar
+                        url={dot.profile_pic_url}
+                        name={dot.username}
+                        size={44}
                         style={[
                           styles.friendAvatar,
                           { borderColor: isSelected ? "#FF2E93" : "#FFFFFF" }
                         ]}
                       />
-                    ) : dot.isFriend ? (
-                      <View
-                        style={[
-                          styles.friendAvatar,
-                          {
-                            borderColor: isSelected ? "#FF2E93" : "#FFFFFF",
-                            backgroundColor: "#8F4CC7",
-                            alignItems: "center",
-                            justifyContent: "center"
-                          }
-                        ]}
-                      >
-                        <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 13 }}>
-                          {dot.username ? dot.username.charAt(0).toUpperCase() : "?"}
-                        </Text>
-                      </View>
                     ) : (
                       <View
                         style={[

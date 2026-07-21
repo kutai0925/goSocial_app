@@ -13,6 +13,7 @@ import {
 import EditProfileScreen from "./EditProfileScreen";
 import { getUser, updateProfile } from "../api/users";
 import { useAuth } from "../context/AuthContext";
+import Avatar from "../components/Avatar";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_GAP = 2;
@@ -99,15 +100,13 @@ export default function ProfileScreen({ route, navigation, onClose }) {
           </TouchableOpacity>
 
           <View style={styles.profileRow}>
-            {profile.profileImage ? (
-              <Image source={{ uri: profile.profileImage }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, { backgroundColor: "#8F4CC7", alignItems: "center", justifyContent: "center" }]}>
-                <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 40 }}>
-                  {profile.firstName ? profile.firstName.charAt(0).toUpperCase() : ""}
-                </Text>
-              </View>
-            )}
+            <Avatar
+              url={profile.profileImage}
+              name={profile.firstName}
+              size={110}
+              style={styles.avatar}
+              textStyle={{ fontSize: 44 }}
+            />
 
             <View style={styles.profileInfo}>
               <Text style={styles.name}>

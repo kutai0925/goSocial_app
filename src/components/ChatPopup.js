@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
+import Avatar from "./Avatar";
 
 export default function ChatPopup({ visible, friend, onClose, onSend }) {
   const [messageText, setMessageText] = useState("");
@@ -33,15 +34,12 @@ export default function ChatPopup({ visible, friend, onClose, onSend }) {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <View style={styles.header}>
-            {friend.profile_pic_url ? (
-              <Image source={{ uri: friend.profile_pic_url }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, styles.avatarFallback]}>
-                <Text style={styles.avatarText}>
-                  {friend.username ? friend.username[0].toUpperCase() : ""}
-                </Text>
-              </View>
-            )}
+            <Avatar
+              url={friend.profile_pic_url}
+              name={friend.username}
+              size={38}
+              style={styles.avatar}
+            />
             <Text style={styles.headerName}>{friend.username || "Mystery User"}</Text>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Text style={styles.closeIcon}>✕</Text>
