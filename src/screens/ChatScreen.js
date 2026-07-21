@@ -15,6 +15,7 @@ import {
   BackHandler,
   Animated,
   Dimensions,
+  StatusBar,
 } from "react-native";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -129,22 +130,27 @@ export default function ChatScreen() {
           const chat = { ...newData[chatIndex] };
           
           // Check if message already exists
-          if (!chat.messages.some(existing => existing.id === m.id || existing.text === m.message && existing.fromMe)) {
-             chat.messages = [...chat.messages, {
-               id: m.id || m.timestamp + Math.random().toString(),
-               text: m.message,
-               time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-               fromMe: m.from_user_id === userId,
-               timestamp: new Date(m.timestamp).getTime()
-             }];
-             chat.lastMessage = m.message;
-             chat.time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-             
-             if (m.to_user_id === userId && selectedChatIdRef.current !== otherId) {
-               chat.unread += 1;
-             }
-          }
-          
+          const isFromMe = m.from_user_id === userId;
+          const exists = chat.messages.some(existing => 
+             (existing.text === m.message && existing.timestamp === new Date(m.timestamp).getTime()) || 
+             (existing.text === m.message && existing.fromMe && isFromMe)
+           );
+           
+           if (!exists) {
+              chat.messages = [...chat.messages, {
+                id: (m.id && m.id !== 0 && m.id !== "0") ? m.id.toString() : (m.timestamp + Math.random().toString()),
+                text: m.message,
+                time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                fromMe: m.from_user_id === userId,
+                timestamp: new Date(m.timestamp).getTime()
+              }].sort((a, b) => a.timestamp - b.timestamp);
+              chat.lastMessage = m.message;
+              chat.time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              
+              if (m.to_user_id === userId && selectedChatIdRef.current !== otherId) {
+                chat.unread += 1;
+              }
+           }  
           newData[chatIndex] = chat;
           return newData;
         });
@@ -365,7 +371,9 @@ export default function ChatScreen() {
                 <Image source={{ uri: item.avatar }} style={styles.avatar} />
               ) : (
                 <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{item.name ? item.name.charAt(0).toUpperCase() : "?"}</Text>
+                  <Text style={styles.avatarText}>
+                    {item.name ? item.name.charAt(0).toUpperCase() : ""}
+                  </Text>
                 </View>
               )}
 
@@ -419,6 +427,8 @@ const ChatDetailScreen = ({ chat, onBack, messageText, setMessageText, onSend, o
     setParticles(prev => prev.filter(p => p.id !== id));
   };
 
+  const scrollViewRef = useRef(null);
+  const isAtBottom = useRef(true);
   const prevMessagesLengthRef = useRef(chat.messages.length);
 
   useEffect(() => {
@@ -450,7 +460,9 @@ const ChatDetailScreen = ({ chat, onBack, messageText, setMessageText, onSend, o
             <Image source={{ uri: chat.avatar }} style={styles.detailAvatar} />
           ) : (
             <View style={styles.detailAvatar}>
-              <Text style={styles.avatarText}>{chat.name ? chat.name.charAt(0).toUpperCase() : "?"}</Text>
+              <Text style={styles.avatarText}>
+                {chat.name ? chat.name.charAt(0).toUpperCase() : ""}
+              </Text>
             </View>
           )}
 
@@ -477,8 +489,22 @@ const ChatDetailScreen = ({ chat, onBack, messageText, setMessageText, onSend, o
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 25}
       >
         <ScrollView
+          ref={scrollViewRef}
           style={styles.messagesContainer}
           contentContainerStyle={styles.messagesContent}
+          onScroll={(e) => {
+            const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+            isAtBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 40;
+          }}
+          scrollEventThrottle={16}
+          onContentSizeChange={() => {
+            if (isAtBottom.current) {
+              scrollViewRef.current?.scrollToEnd({ animated: true });
+            }
+          }}
+          onLayout={() => {
+            scrollViewRef.current?.scrollToEnd({ animated: false });
+          }}
         >
           <View style={styles.dateChip}>
             <Text style={styles.dateChipText}>Today</Text>
@@ -565,10 +591,10 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    height: 88,
     backgroundColor: "#1F1F1F",
     paddingHorizontal: 18,
-    paddingTop: 18,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight + 12 : 12,
+    paddingBottom: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -730,10 +756,10 @@ const styles = StyleSheet.create({
   },
 
   detailHeader: {
-    height: 84,
     backgroundColor: "#1F1F1F",
     paddingHorizontal: 8,
-    paddingTop: 16,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight + 10 : 10,
+    paddingBottom: 10,
     flexDirection: "row",
     alignItems: "center",
   },

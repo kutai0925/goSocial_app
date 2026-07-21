@@ -21,8 +21,8 @@ export function deleteUser(userId) {
 }
 
 // -> User { username, user_id, coordinates, firstName, lastName, bio, location, profileImage }
-export function getUser(userId) {
-  return apiRequest(`/v1/users/${userId}`);
+export function getUser(userId, viewerId) {
+  return apiRequest(viewerId ? `/v1/users/${userId}?viewer_id=${viewerId}` : `/v1/users/${userId}`);
 }
 
 // -> User[]

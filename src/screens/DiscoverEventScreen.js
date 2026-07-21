@@ -120,7 +120,7 @@ export default function DiscoverEventScreen() {
           ) : (
             <View style={[styles.headerAvatar, { backgroundColor: "#8F4CC7", alignItems: "center", justifyContent: "center" }]}>
               <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 18 }}>
-                {currentUser && currentUser.first_name ? currentUser.first_name.charAt(0).toUpperCase() : "?"}
+                {currentUser && currentUser.first_name ? currentUser.first_name.charAt(0).toUpperCase() : (currentUser && currentUser.username ? currentUser.username.charAt(0).toUpperCase() : "")}
               </Text>
             </View>
           )}

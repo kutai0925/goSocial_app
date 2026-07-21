@@ -76,7 +76,7 @@ export default function EditProfileScreen({ profile, onCancel, onSave }) {
             ) : (
               <View style={[styles.avatar, { backgroundColor: "#8F4CC7", alignItems: "center", justifyContent: "center" }]}>
                 <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 40 }}>
-                  {firstName ? firstName.charAt(0).toUpperCase() : "?"}
+                  {firstName ? firstName.charAt(0).toUpperCase() : ""}
                 </Text>
               </View>
             )}

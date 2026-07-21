@@ -8,6 +8,8 @@ import ProfileScreen from '../screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 
+const UserProfileWrapper = (props) => <ProfileScreen {...props} />;
+
 export default function RootNavigator() {
   const { isAuthenticated } = useAuth();
 
@@ -19,11 +21,11 @@ export default function RootNavigator() {
           <Stack.Screen 
             name="Radar" 
             component={RadarScreen} 
-            options={{ presentation: 'fullScreenModal' }} 
           />
           <Stack.Screen 
             name="UserProfile" 
-            component={ProfileScreen} 
+            component={UserProfileWrapper} 
+            options={{ animation: 'slide_from_right' }}
           />
         </>
       ) : (

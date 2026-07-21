@@ -50,7 +50,7 @@ export default function ProfileScreen({ route, navigation, onClose }) {
   useEffect(() => {
     async function loadProfile() {
       try {
-        const data = await getUser(userId);
+        const data = await getUser(userId, currentUserId);
         setProfile({
           firstName: data.first_name || data.username,
           lastName: data.last_name || "",
@@ -93,9 +93,9 @@ export default function ProfileScreen({ route, navigation, onClose }) {
         <View style={styles.header}>
           <TouchableOpacity style={styles.menuButton} onPress={() => {
             if (onClose) onClose();
-            else if (navigation) navigation.goBack();
+            else if (navigation && navigation.canGoBack()) navigation.goBack();
           }}>
-            <Text style={styles.menuIcon}>{!isOwnProfile ? "←" : "☰"}</Text>
+            <Text style={styles.menuIcon}>{onClose || (navigation && navigation.canGoBack()) ? "↓" : "☰"}</Text>
           </TouchableOpacity>
 
           <View style={styles.profileRow}>
@@ -104,7 +104,7 @@ export default function ProfileScreen({ route, navigation, onClose }) {
             ) : (
               <View style={[styles.avatar, { backgroundColor: "#8F4CC7", alignItems: "center", justifyContent: "center" }]}>
                 <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 40 }}>
-                  {profile.firstName ? profile.firstName.charAt(0).toUpperCase() : "?"}
+                  {profile.firstName ? profile.firstName.charAt(0).toUpperCase() : ""}
                 </Text>
               </View>
             )}

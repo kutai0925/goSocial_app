@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Modal,
   View,
@@ -14,6 +14,8 @@ import {
 
 export default function ChatPopup({ visible, friend, onClose, onSend }) {
   const [messageText, setMessageText] = useState("");
+  const scrollViewRef = useRef(null);
+  const isAtBottom = useRef(true);
 
   if (!friend) return null;
 
@@ -36,7 +38,7 @@ export default function ChatPopup({ visible, friend, onClose, onSend }) {
             ) : (
               <View style={[styles.avatar, styles.avatarFallback]}>
                 <Text style={styles.avatarText}>
-                  {friend.username ? friend.username[0] : "?"}
+                  {friend.username ? friend.username[0].toUpperCase() : ""}
                 </Text>
               </View>
             )}
@@ -46,7 +48,24 @@ export default function ChatPopup({ visible, friend, onClose, onSend }) {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.messages} contentContainerStyle={styles.messagesContent}>
+          <ScrollView 
+            ref={scrollViewRef}
+            style={styles.messages} 
+            contentContainerStyle={styles.messagesContent}
+            onScroll={(e) => {
+              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+              isAtBottom.current = layoutMeasurement.height + contentOffset.y >= contentSize.height - 40;
+            }}
+            scrollEventThrottle={16}
+            onContentSizeChange={() => {
+              if (isAtBottom.current) {
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+              }
+            }}
+            onLayout={() => {
+              scrollViewRef.current?.scrollToEnd({ animated: false });
+            }}
+          >
             {friend.messages.map((m) => (
               <View
                 key={m.id}
@@ -86,7 +105,7 @@ const styles = StyleSheet.create({
   },
 
   sheet: {
-    height: "65%",
+    height: "85%",
     backgroundColor: "#1A0B2A",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,

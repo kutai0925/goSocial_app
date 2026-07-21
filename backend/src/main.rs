@@ -284,7 +284,13 @@ async fn update_profile(State(state): State<AppState>, Path(user_id): Path<Uuid>
 }
 
 #[axum::debug_handler]
-async fn get_user(State(state): State<AppState>, Path(user_id): Path<Uuid>) -> Result<Json<User>, StatusCode> {
+async fn get_user(
+    State(state): State<AppState>, 
+    Path(user_id): Path<Uuid>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<User>, StatusCode> {
+    let viewer_id = params.get("viewer_id");
+
     let row = sqlx::query("SELECT * FROM users WHERE user_id = ?")
         .bind(user_id.to_string())
         .fetch_optional(&state.db)
@@ -292,7 +298,39 @@ async fn get_user(State(state): State<AppState>, Path(user_id): Path<Uuid>) -> R
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if let Some(r) = row {
-        Ok(Json(row_to_user(r)))
+        let mut u = row_to_user(r);
+        let mut is_friend = false;
+        
+        if let Some(v_id) = viewer_id {
+            if v_id != &user_id.to_string() {
+                let w1 = sqlx::query("SELECT status FROM waves WHERE from_user_id = ? AND to_user_id = ?")
+                    .bind(v_id)
+                    .bind(user_id.to_string())
+                    .fetch_optional(&state.db).await.unwrap_or(None);
+                let w2 = sqlx::query("SELECT status FROM waves WHERE from_user_id = ? AND to_user_id = ?")
+                    .bind(user_id.to_string())
+                    .bind(v_id)
+                    .fetch_optional(&state.db).await.unwrap_or(None);
+
+                let s1: Option<String> = w1.map(|row| row.get("status"));
+                let s2: Option<String> = w2.map(|row| row.get("status"));
+
+                if s1.as_deref() == Some("accepted") || s2.as_deref() == Some("accepted") {
+                    is_friend = true;
+                }
+            } else {
+                is_friend = true;
+            }
+        }
+
+        if !is_friend && user_id.to_string() != "00000000-0000-0000-0000-000000000000" {
+            u.profile_image = None;
+            u.last_name = None;
+            u.bio = Some("Wave at them to discover more!".to_string());
+            u.location = Some("Nearby".to_string());
+        }
+
+        Ok(Json(u))
     } else {
         Err(StatusCode::NOT_FOUND)
     }
@@ -583,7 +621,12 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid) {
     let mut send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
             if let Ok(payload) = serde_json::from_str::<WsPayload>(&msg) {
-                if payload.message.to_user_id == user_id || payload.message.from_user_id == user_id {
+                if let Some(m) = payload.message {
+                    if m.to_user_id == user_id || m.from_user_id == user_id {
+                        let _ = sender.send(WsMessage::Text(msg.clone().into())).await;
+                    }
+                } else {
+                    // non-message events
                     let _ = sender.send(WsMessage::Text(msg.clone().into())).await;
                 }
             }
