@@ -80,7 +80,7 @@ import {
 import { getNearbyUsers, acceptWave, declineWave } from "../api/users";
 import { WS_BASE_URL } from "../api/config";
 
-export default function ChatScreen() {
+export default function ChatScreen({ route }) {
   const navigation = useNavigation();
   const { userId } = useAuth();
   const [selectedChatId, setSelectedChatId] = useState(null);
@@ -110,6 +110,20 @@ export default function ChatScreen() {
       );
       return () => subscription.remove();
     }, [selectedChatId]),
+  );
+
+  // Auto-open chat if navigated with openChatWithUserId param
+  useFocusEffect(
+    useCallback(() => {
+      const openChatWithUserId = route?.params?.openChatWithUserId;
+      if (openChatWithUserId && chatData.length > 0) {
+        const chat = chatData.find((c) => c.id === openChatWithUserId);
+        if (chat) {
+          setSelectedChatId(chat.id);
+          navigation.setParams({ openChatWithUserId: null });
+        }
+      }
+    }, [route?.params?.openChatWithUserId, chatData, navigation])
   );
 
   useEffect(() => {

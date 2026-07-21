@@ -17,6 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useNavigation } from "@react-navigation/native";
 import eventsData from "../data/events.json";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -44,7 +45,7 @@ const generateNearbyMarkers = (lat, lon) => {
 
 import { Callout } from "react-native-maps";
 
-const CustomUserMarker = ({ user, openEventPopup, iconUri }) => {
+const CustomUserMarker = ({ user, onPress, iconUri, isCurrentUser }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const size = 60; // Slightly smaller to match event pins
 
@@ -67,6 +68,8 @@ const CustomUserMarker = ({ user, openEventPopup, iconUri }) => {
         }}
         icon={{ uri: iconUri }}
         anchor={{ x: 0.5, y: 0.5 }}
+        onPress={isCurrentUser ? undefined : onPress}
+        opacity={isCurrentUser ? 0.6 : 1}
       />
     );
   }
@@ -79,6 +82,8 @@ const CustomUserMarker = ({ user, openEventPopup, iconUri }) => {
         longitude: user.coordinates?.lon || 0,
       }}
       tracksViewChanges={!isLoaded}
+      onPress={isCurrentUser ? undefined : onPress}
+      opacity={isCurrentUser ? 0.6 : 1}
     >
       <View
         style={{
@@ -117,8 +122,10 @@ const CustomUserMarker = ({ user, openEventPopup, iconUri }) => {
 };
 
 export default function MapScreen() {
+  const navigation = useNavigation();
   const { userId } = useAuth();
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(null);
   const [location, setLocation] = useState(null);
   const [generatedUserIcons, setGeneratedUserIcons] = useState({});
   const [region, setRegion] = useState(null);
@@ -242,10 +249,20 @@ export default function MapScreen() {
 
   const openEventPopup = (event) => {
     setSelectedEvent(event);
+    setSelectedUser(null);
   };
 
   const closePopup = () => {
     setSelectedEvent(null);
+  };
+
+  const openUserPopup = (user) => {
+    setSelectedUser(user);
+    setSelectedEvent(null);
+  };
+
+  const closeUserPopup = () => {
+    setSelectedUser(null);
   };
 
   const getMarkerImage = (type) => {
@@ -331,8 +348,9 @@ export default function MapScreen() {
               <CustomUserMarker
                 key={`${user.user_id}-v3`}
                 user={user}
-                openEventPopup={openEventPopup}
+                onPress={() => openUserPopup(user)}
                 iconUri={generatedUserIcons[user.user_id]}
+                isCurrentUser={user.user_id === userId}
               />
             ))}
           </MapView>
@@ -360,6 +378,42 @@ export default function MapScreen() {
           onImagesReady={setGeneratedUserIcons}
         />
       )}
+
+      <Modal
+        visible={selectedUser !== null}
+        transparent={true}
+        animationType="fade"
+      >
+        <Pressable style={styles.modalOverlay} onPress={closeUserPopup}>
+          <Pressable style={styles.popupCard}>
+            <Text style={styles.popupTitle}>{selectedUser?.username}</Text>
+
+            <TouchableOpacity
+              style={styles.showButton}
+              onPress={() => {
+                closeUserPopup();
+                navigation.navigate("Chat", { openChatWithUserId: selectedUser?.user_id });
+              }}
+            >
+              <Text style={styles.showButtonText}>Chat</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.showButton, { marginTop: 10, backgroundColor: "#333" }]}
+              onPress={() => {
+                closeUserPopup();
+                navigation.navigate("UserProfile", { userId: selectedUser?.user_id });
+              }}
+            >
+              <Text style={styles.showButtonText}>Profile</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={closeUserPopup}>
+              <Text style={styles.closeText}>Close</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal
         visible={selectedEvent !== null}

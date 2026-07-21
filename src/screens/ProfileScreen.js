@@ -118,9 +118,8 @@ export default function ProfileScreen({ route, navigation, onClose }) {
             <Avatar
               url={profile.profileImage}
               name={profile.firstName}
-              size={110}
+              size={84}
               style={styles.avatar}
-              textStyle={{ fontSize: 44 }}
             />
 
             <View style={styles.profileInfo}>
@@ -222,9 +221,6 @@ const styles = StyleSheet.create({
   },
 
   avatar: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
     borderWidth: 3,
     borderColor: "#FFFFFF",
     marginRight: 16,
