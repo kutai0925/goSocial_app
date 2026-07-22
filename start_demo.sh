@@ -7,11 +7,8 @@ echo "==================================="
 echo "🚀 Starting goSocial Demo Environment"
 echo "==================================="
 
-# 1. Get the local IP address (macOS specific)
-LOCAL_IP=$(ipconfig getifaddr en0)
-if [ -z "$LOCAL_IP" ]; then
-    LOCAL_IP=$(ipconfig getifaddr en1)
-fi
+# 1. Get the local IP address (Cross-platform using Node.js)
+LOCAL_IP=$(node -e "const nets=require('os').networkInterfaces();for(const name of Object.keys(nets)){for(const net of nets[name]){if((net.family==='IPv4'||net.family===4)&&!net.internal){console.log(net.address);process.exit(0);}}}")
 if [ -z "$LOCAL_IP" ]; then
     echo "⚠️  Could not detect local Wi-Fi IP address. Defaulting to localhost."
     LOCAL_IP="localhost"
