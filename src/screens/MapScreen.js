@@ -171,7 +171,7 @@ export default function MapScreen() {
 
         locationSubscription = await Location.watchPositionAsync(
           {
-            accuracy: Location.Accuracy.Balanced,
+            accuracy: Location.Accuracy.Highest,
             distanceInterval: 10,
           },
           async (freshLocation) => {

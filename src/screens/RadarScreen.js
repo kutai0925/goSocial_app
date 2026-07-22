@@ -16,6 +16,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Magnetometer } from "expo-sensors";
 import { Audio } from "expo-av";
+import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ChatPopup from "../components/ChatPopup";
 import ProfileScreen from "./ProfileScreen";
@@ -162,8 +163,22 @@ export default function RadarScreen({ navigation }) {
           lat = coords.latitude;
           lon = coords.longitude;
         }
+
+        // Fetch actual GPS location if permission is granted
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === "granted") {
+          const location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Highest,
+          });
+          lat = location.coords.latitude;
+          lon = location.coords.longitude;
+          await AsyncStorage.setItem(
+            "user_cached_location",
+            JSON.stringify({ latitude: lat, longitude: lon }),
+          );
+        }
       } catch (err) {
-        console.log("Error loading cached location in radar:", err);
+        console.log("Error loading cached/gps location in radar:", err);
       }
       if (isMounted.current) {
         setUserCoords({ latitude: lat, longitude: lon });
