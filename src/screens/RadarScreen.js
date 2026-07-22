@@ -700,11 +700,7 @@ export default function RadarScreen({ navigation }) {
     if (!activeChat || !userId) return;
 
     try {
-      await sendMessage(userId, {
-        message: text,
-        toUserId: activeChat.user_id,
-      });
-      // Optimistically add to UI
+      // Optimistically add to UI BEFORE await
       setActiveChat((prev) =>
         prev
           ? {
@@ -725,6 +721,11 @@ export default function RadarScreen({ navigation }) {
             }
           : prev,
       );
+
+      await sendMessage(userId, {
+        message: text,
+        toUserId: activeChat.user_id,
+      });
     } catch (e) {
       console.log("Failed to send popup message:", e);
     }
